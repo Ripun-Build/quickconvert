@@ -1,0 +1,85 @@
+# QuickConvert — Milestones
+
+Work top to bottom. One milestone per commit (`M<n>: summary`). Each milestone must pass `cargo test`, `cargo clippy -- -D warnings` and `npx tsc --noEmit`.
+
+> Host OS for development: **macOS**. Implement selection for the host OS first; the other OS gets a compiling stub.
+
+## M0 — Scaffold
+- [ ] `npm create tauri-app@latest` (React + TS + Vite) in this repo root; keep `docs/`
+- [ ] Add Tailwind, Framer Motion, lucide-react; TS `strict: true`
+- [ ] Create `src/styles/tokens.css` from DESIGN.md §1 and map Tailwind theme to the variables
+- [ ] Create the project folder layout with empty modules that compile
+- [ ] `AppError` in `errors.rs` (serialises to `{ code, message }`)
+- [ ] `.gitignore` covers `node_modules`, `dist`, `src-tauri/target`
+- [ ] App runs with `npm run tauri dev`
+
+## M1 — Tray + hotkey + popup shell
+- [ ] Tray icon with menu: Open QuickConvert · Settings… · Quit
+- [ ] No Dock icon on macOS (`ActivationPolicy::Accessory`); skip taskbar on Windows
+- [ ] Popup window created once at startup: transparent, borderless, always-on-top, hidden
+- [ ] Native blur via `window-vibrancy` with solid fallback (`data-blur="off"`)
+- [ ] Global hotkey (defaults per SPECS §4) shows the popup at the cursor
+- [ ] `popup/position.rs`: cursor monitor detection, flip near edges, clamp to work area with 8 px margin, HiDPI-correct; unit tests for the maths
+- [ ] Appear/hide animations (DESIGN §5); Esc and focus-loss hide
+- [ ] Measure: popup visible ≤ 150 ms after hotkey (log timing in dev)
+
+## M2 — Getting files in
+- [ ] `get_selected_files()` for host OS (Windows COM on STA thread / macOS AppleScript)
+- [ ] Graceful fallback: no selection / permission denied → DropZone with hint
+- [ ] Drag-and-drop onto popup and "Choose files…" dialog
+- [ ] `thumbnail(path)` command (small PNG data URL, cached by path+mtime)
+- [ ] FileChip (single + multi fan), unsupported-file count
+- [ ] `lib/actions.ts` registry + suggestion logic (SPECS §6) with unit tests
+- [ ] ActionList view: search filter, groups, ↑/↓/Enter/1–9 keyboard, shared highlight
+
+## M3 — Job runner + first conversions
+- [ ] `jobs.rs`: spawn_blocking, `job://progress` events, cancel flag, per-file results
+- [ ] `output.rs`: naming rules (SPECS §9), collision-safe names, temp-then-rename, Downloads fallback; tests
+- [ ] `images_to_pdf` (embed JPEGs without re-encoding; others → JPEG/PNG stream), page size + margin options
+- [ ] `pdf_merge` (lopdf)
+- [ ] `image_convert` (JPG/PNG/WebP, quality, transparency → white for JPG)
+- [ ] `image_resize` (long edge / exact / percent, Lanczos3)
+- [ ] OptionsSheet, Running, Result and ErrorView views
+- [ ] Test: originals byte-identical after every action
+
+## M4 — PDF to images
+- [ ] Bundle pdfium dynamic library as a resource; load at runtime with clear error if missing
+- [ ] `pdf_to_images` with format, DPI and page-range parsing (tests for "1-3,5")
+- [ ] Output folder `<name> pages/` with zero-padded names
+- [ ] Password-protected PDF → friendly error
+
+## M5 — Compress + presets
+- [ ] `image_compress` quality mode
+- [ ] Target-size algorithm (SPECS §7) with tests on fixtures (hits ≤ target, respects min)
+- [ ] Load `resources/presets.json` + user presets; `apply_preset` action
+- [ ] Result view shows final size · dimensions · quality
+
+## M6 — Settings window
+- [ ] Separate 480×560 window, opened from tray / Cmd/Ctrl+,
+- [ ] Hotkey recorder with conflict detection + reset
+- [ ] Output location, defaults, appearance (System/Light/Dark), auto-hide toggle
+- [ ] Preset editor (add / edit / duplicate / delete)
+- [ ] Launch at login (`tauri-plugin-autostart`)
+- [ ] Settings persisted as JSON in app config dir
+
+## M7 — Polish + v1 release
+- [ ] Walk through every acceptance criterion in SPECS §14 and fix gaps
+- [ ] Reduced-motion and keyboard-only pass; contrast check in both themes
+- [ ] Batch of 50 files: progress, cancel, per-file failure report
+- [ ] App icon + tray icons (light/dark template on macOS)
+- [ ] `npm run tauri build` produces installer ≤ 25 MB
+- [ ] README with screenshots, install steps, and licences of bundled libraries
+
+## Phase 2 (after v1)
+- [ ] CropEditor (aspect presets, rotate) + `image_crop`
+- [ ] PageTray (reorder/rotate/remove before PDF)
+- [ ] `pdf_split`, `pdf_compress`, `pdf_rotate`, `image_rotate`
+- [ ] `heic_to_jpg` via libheif (dynamic, LGPL)
+- [ ] `strip_metadata`
+- [ ] Other OS: implement real selection, test, package
+
+## Phase 3
+- [ ] Explorer/Finder right-click entry
+- [ ] FFmpeg sidecar: video → GIF, extract audio, compress video
+- [ ] OCR (Tesseract), batch rename
+- [ ] Code signing / notarisation, auto-update (opt-in, the only allowed network call)

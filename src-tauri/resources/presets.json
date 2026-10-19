@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "presets": [
+    {
+      "id": "photo_small_example",
+      "label": "Exam/job photo (example)",
+      "format": "jpg",
+      "width": 200,
+      "height": 230,
+      "minKB": 20,
+      "maxKB": 50,
+      "dpi": 200,
+      "note": "Example values only. Always check the portal's official notice."
+    },
+    {
+      "id": "signature_example",
+      "label": "Signature (example)",
+      "format": "jpg",
+      "width": 140,
+      "height": 60,
+      "minKB": 10,
+      "maxKB": 20,
+      "dpi": 200,
+      "note": "Example values only. Always check the portal's official notice."
+    },
+    {
+      "id": "passport_photo_35x45",
+      "label": "Passport-style photo 35×45 mm",
+      "format": "jpg",
+      "aspect": "35:45",
+      "width": 413,
+      "height": 531,
+      "maxKB": 100,
+      "dpi": 300,
+      "note": "35×45 mm at 300 DPI. Check the size limit required by your form."
+    },
+    {
+      "id": "document_scan_under_1mb",
+      "label": "Document scan under 1 MB",
+      "format": "jpg",
+      "maxKB": 1000,
+      "note": "Keeps original dimensions where possible."
+    },
+    {
+      "id": "email_friendly",
+      "label": "Email-friendly (1600 px, under 500 KB)",
+      "format": "jpg",
+      "longEdge": 1600,
+      "maxKB": 500
+    },
+    {
+      "id": "whatsapp_sharp",
+      "label": "Sharp for WhatsApp (2048 px)",
+      "format": "jpg",
+      "longEdge": 2048,
+      "maxKB": 1000
+    }
+  ]
+}
