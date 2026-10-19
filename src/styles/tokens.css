@@ -1,0 +1,97 @@
+/* Design tokens — source: docs/DESIGN.md §1. Components never hard-code values; use these (via Tailwind) instead. */
+
+:root {
+  /* Material */
+  --bg-glass: rgba(246, 246, 248, 0.72); /* over native vibrancy */
+  --bg-solid: #f5f5f7; /* fallback when blur unavailable */
+  --surface: rgba(255, 255, 255, 0.6); /* cards, inputs */
+  --surface-hover: rgba(0, 0, 0, 0.05);
+  --surface-selected: rgba(0, 122, 255, 0.12);
+  --separator: rgba(0, 0, 0, 0.08);
+  --border-glass: rgba(255, 255, 255, 0.55); /* 1px inner highlight */
+
+  /* Text */
+  --text-primary: rgba(0, 0, 0, 0.88);
+  --text-secondary: rgba(0, 0, 0, 0.56);
+  --text-tertiary: rgba(0, 0, 0, 0.36);
+  --text-on-accent: #ffffff;
+
+  /* Accent & status */
+  --accent: #007aff;
+  --accent-pressed: #0062cc;
+  --success: #34c759;
+  --warning: #ff9f0a;
+  --danger: #ff3b30;
+  --focus-ring: rgba(0, 122, 255, 0.45);
+
+  /* Shape */
+  --radius-popup: 18px;
+  --radius-card: 12px;
+  --radius-row: 8px;
+  --radius-control: 7px;
+  --radius-pill: 999px;
+
+  /* Elevation */
+  --shadow-popup: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 12px 40px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.08);
+
+  /* Spacing scale (4 px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* Type */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  --text-title: 600 15px/20px var(--font-sans);
+  --text-body: 400 13px/18px var(--font-sans);
+  --text-body-strong: 500 13px/18px var(--font-sans);
+  --text-caption: 400 11px/14px var(--font-sans);
+  --tracking-tight: -0.01em;
+}
+
+/* Dark: follows the system unless Settings forces light. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg-glass: rgba(30, 30, 32, 0.7);
+    --bg-solid: #1c1c1e;
+    --surface: rgba(255, 255, 255, 0.06);
+    --surface-hover: rgba(255, 255, 255, 0.08);
+    --surface-selected: rgba(10, 132, 255, 0.24);
+    --separator: rgba(255, 255, 255, 0.1);
+    --border-glass: rgba(255, 255, 255, 0.1);
+    --text-primary: rgba(255, 255, 255, 0.92);
+    --text-secondary: rgba(255, 255, 255, 0.6);
+    --text-tertiary: rgba(255, 255, 255, 0.38);
+    --accent: #0a84ff;
+    --accent-pressed: #0070e0;
+    --success: #30d158;
+    --warning: #ff9f0a;
+    --danger: #ff453a;
+    --focus-ring: rgba(10, 132, 255, 0.55);
+    --shadow-popup: 0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 16px 48px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* Forced dark (Settings → Appearance → Dark). Keep in sync with the block above. */
+:root[data-theme="dark"] {
+  --bg-glass: rgba(30, 30, 32, 0.7);
+  --bg-solid: #1c1c1e;
+  --surface: rgba(255, 255, 255, 0.06);
+  --surface-hover: rgba(255, 255, 255, 0.08);
+  --surface-selected: rgba(10, 132, 255, 0.24);
+  --separator: rgba(255, 255, 255, 0.1);
+  --border-glass: rgba(255, 255, 255, 0.1);
+  --text-primary: rgba(255, 255, 255, 0.92);
+  --text-secondary: rgba(255, 255, 255, 0.6);
+  --text-tertiary: rgba(255, 255, 255, 0.38);
+  --accent: #0a84ff;
+  --accent-pressed: #0070e0;
+  --success: #30d158;
+  --warning: #ff9f0a;
+  --danger: #ff453a;
+  --focus-ring: rgba(10, 132, 255, 0.55);
+  --shadow-popup: 0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 16px 48px rgba(0, 0, 0, 0.5);
+}

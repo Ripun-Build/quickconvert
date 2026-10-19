@@ -1,10 +1,21 @@
+# Dependencies & build output
 node_modules/
 dist/
+dist-ssr/
 src-tauri/target/
 src-tauri/gen/
+
+# Logs
 *.log
-.DS_Store
-Thumbs.db
+npm-debug.log*
+
+# Local env & editor
 .env
+*.local
 .vscode/*
 !.vscode/extensions.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

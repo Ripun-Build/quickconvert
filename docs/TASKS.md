@@ -5,13 +5,13 @@ Work top to bottom. One milestone per commit (`M<n>: summary`). Each milestone m
 > Host OS for development: **macOS**. Implement selection for the host OS first; the other OS gets a compiling stub.
 
 ## M0 — Scaffold
-- [ ] `npm create tauri-app@latest` (React + TS + Vite) in this repo root; keep `docs/`
-- [ ] Add Tailwind, Framer Motion, lucide-react; TS `strict: true`
-- [ ] Create `src/styles/tokens.css` from DESIGN.md §1 and map Tailwind theme to the variables
-- [ ] Create the project folder layout with empty modules that compile
-- [ ] `AppError` in `errors.rs` (serialises to `{ code, message }`)
-- [ ] `.gitignore` covers `node_modules`, `dist`, `src-tauri/target`
-- [ ] App runs with `npm run tauri dev`
+- [x] `npm create tauri-app@latest` (React + TS + Vite) in this repo root; keep `docs/`
+- [x] Add Tailwind, Framer Motion, lucide-react; TS `strict: true`
+- [x] Create `src/styles/tokens.css` from DESIGN.md §1 and map Tailwind theme to the variables
+- [x] Create the project folder layout with empty modules that compile
+- [x] `AppError` in `errors.rs` (serialises to `{ code, message }`)
+- [x] `.gitignore` covers `node_modules`, `dist`, `src-tauri/target`
+- [x] App runs with `npm run tauri dev`
 
 ## M1 — Tray + hotkey + popup shell
 - [ ] Tray icon with menu: Open QuickConvert · Settings… · Quit

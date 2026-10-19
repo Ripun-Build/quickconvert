@@ -1,0 +1,76 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+/*
+ * Tailwind theme → design tokens. Tailwind's default colours, radii, shadows and font sizes
+ * are cleared so only DESIGN.md tokens are available (e.g. bg-surface, text-secondary, rounded-popup).
+ */
+@theme inline reference {
+  --color-*: initial;
+  --color-glass: var(--bg-glass);
+  --color-solid: var(--bg-solid);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-selected: var(--surface-selected);
+  --color-separator: var(--separator);
+  --color-border-glass: var(--border-glass);
+  --color-primary: var(--text-primary);
+  --color-secondary: var(--text-secondary);
+  --color-tertiary: var(--text-tertiary);
+  --color-on-accent: var(--text-on-accent);
+  --color-accent: var(--accent);
+  --color-accent-pressed: var(--accent-pressed);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-focus-ring: var(--focus-ring);
+  --color-transparent: transparent;
+
+  --radius-*: initial;
+  --radius-popup: var(--radius-popup);
+  --radius-card: var(--radius-card);
+  --radius-row: var(--radius-row);
+  --radius-control: var(--radius-control);
+  --radius-pill: var(--radius-pill);
+
+  --shadow-*: initial;
+  --shadow-popup: var(--shadow-popup);
+
+  --text-*: initial;
+  --spacing: var(--space-1);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --tracking-tight: var(--tracking-tight);
+}
+
+/* Type styles (DESIGN.md §2). Use these instead of font-size utilities. */
+@utility type-title {
+  font: var(--text-title);
+  letter-spacing: var(--tracking-tight);
+}
+@utility type-body {
+  font: var(--text-body);
+}
+@utility type-body-strong {
+  font: var(--text-body-strong);
+}
+@utility type-caption {
+  font: var(--text-caption);
+}
+
+@layer base {
+  html,
+  body {
+    font: var(--text-body);
+    color: var(--text-primary);
+    background: var(--bg-solid);
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+  }
+
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+}
