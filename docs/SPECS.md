@@ -35,6 +35,8 @@ QuickConvert is a lightweight desktop tray app for Windows and macOS. The user s
 
 If no files are selected (or selection can't be read), the popup opens in **Drop Zone** state: "Drop files here" + a "Choose files…" button.
 
+The selection is only read when Explorer/Finder is the frontmost app at the moment the hotkey is pressed; from any other app the popup opens in Drop Zone state. The popup appears immediately and the selection fills in when read, so a slow Explorer/Finder never delays it.
+
 ## 4. Triggers
 
 | Trigger | Phase | Notes |
@@ -69,12 +71,13 @@ If no files are selected (or selection can't be read), the popup opens in **Drop
 
 ### Keyboard
 - Typing anywhere focuses the search field and filters actions (fuzzy match on label + keywords).
-- ↑/↓ move highlight, Enter runs/opens options, 1–9 pick the Nth visible action.
-- Esc: back one view → close popup. Cmd/Ctrl+, opens Settings.
+- ↑/↓ move highlight, Enter runs/opens options, 1–9 pick the Nth visible action (while the search field is empty).
+- Esc: clears the search first, then back one view → close popup. Cmd/Ctrl+, opens Settings.
 - Visible focus ring on all controls.
 
 ### Dismissal
 - Hide on: Esc from first view, focus lost (click outside / app switch), successful auto-hide.
+- Exception: the **Drop Zone** stays open when focus is lost, so files can be dragged in from Explorer/Finder. Esc closes it; a drop or file choice moves on to the action list.
 - **Never** hide while a job is running because of focus loss — keep running and show a tray notification when done.
 
 ## 6. Action catalogue

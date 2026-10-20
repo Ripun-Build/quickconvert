@@ -2,19 +2,25 @@
 
 pub mod position;
 
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Instant;
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition};
+use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition};
 
 use crate::errors::AppError;
+use crate::files::{self, FileSet};
+use crate::selection::{self, Selection};
 use position::{place_at_cursor, place_centered, Origin, Rect};
 
 pub const LABEL: &str = "popup";
-/// Logical size of the popup shell. Becomes content-driven in M2.
-const SIZE: (f64, f64) = (360.0, 176.0);
+/// Logical width; height follows the content (`resize`), up to `MAX_HEIGHT`.
+const WIDTH: f64 = 360.0;
+const MIN_HEIGHT: f64 = 120.0;
+const MAX_HEIGHT: f64 = 480.0;
 
+#[derive(Clone, Copy)]
 pub enum Anchor {
     Cursor,
     Center,
@@ -23,8 +29,37 @@ pub enum Anchor {
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ShowPayload {
+    generation: u64,
     origin: Origin,
     hotkey: String,
+    /// True while the file selection is being read; a `popup://files` event follows.
+    reading: bool,
+}
+
+#[derive(Clone, Copy, Serialize)]
+#[serde(rename_all = "kebab-case")]
+enum FilesState {
+    Files,
+    Empty,
+    Permission,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FilesPayload {
+    generation: u64,
+    state: FilesState,
+    set: FileSet,
+}
+
+/// Where the popup was last placed, so it can be re-placed when its height changes.
+#[derive(Clone, Copy)]
+struct Layout {
+    anchor: Anchor,
+    cursor: (f64, f64),
+    work_area: Rect,
+    scale: f64,
+    height: f64,
 }
 
 /// Shared popup state, managed by Tauri.
@@ -35,57 +70,154 @@ pub struct PopupState {
     pub blur: bool,
     /// When the last show was requested, for the dev-only latency log.
     pub show_requested: Mutex<Option<Instant>>,
+    /// Incremented on every show; stale selection results are dropped.
+    generation: AtomicU64,
+    /// While pinned (drop zone), losing focus doesn't hide the popup.
+    pinned: AtomicBool,
+    layout: Mutex<Option<Layout>>,
 }
 
-pub fn show(app: &AppHandle, anchor: Anchor) -> Result<(), AppError> {
+impl PopupState {
+    pub fn new(hotkey_label: String, blur: bool) -> Self {
+        Self {
+            hotkey_label,
+            blur,
+            show_requested: Mutex::new(None),
+            generation: AtomicU64::new(0),
+            pinned: AtomicBool::new(false),
+            layout: Mutex::new(None),
+        }
+    }
+
+    pub fn is_pinned(&self) -> bool {
+        self.pinned.load(Ordering::Relaxed)
+    }
+
+    pub fn set_pinned(&self, pinned: bool) {
+        self.pinned.store(pinned, Ordering::Relaxed);
+    }
+}
+
+/// Show the popup. With `read_selection`, the Finder/Explorer selection is read in the background
+/// and delivered as a `popup://files` event, so a slow read never delays the popup.
+pub fn show(app: &AppHandle, anchor: Anchor, read_selection: bool) -> Result<(), AppError> {
     let requested = Instant::now();
-    let window = app
-        .get_webview_window(LABEL)
-        .ok_or_else(|| AppError::internal("popup window missing"))?;
-
-    let (cursor, monitor) = crate::cursor_and_monitor(app)?;
-    let scale = monitor.scale_factor();
-    let area = monitor.work_area();
-    let work_area = Rect {
-        x: area.position.x,
-        y: area.position.y,
-        width: area.size.width,
-        height: area.size.height,
-    };
-    let size = (
-        (SIZE.0 * scale).round() as u32,
-        (SIZE.1 * scale).round() as u32,
-    );
-    let placement = match anchor {
-        Anchor::Cursor => place_at_cursor((cursor.x, cursor.y), size, work_area, scale),
-        Anchor::Center => place_centered(size, work_area),
-    };
-
     let state = app.state::<PopupState>();
+    let (cursor, monitor) = crate::cursor_and_monitor(app)?;
+    let area = monitor.work_area();
+    let height = state
+        .layout
+        .lock()
+        .ok()
+        .and_then(|l| l.map(|l| l.height))
+        .unwrap_or(MIN_HEIGHT);
+    let layout = Layout {
+        anchor,
+        cursor: (cursor.x, cursor.y),
+        work_area: Rect {
+            x: area.position.x,
+            y: area.position.y,
+            width: area.size.width,
+            height: area.size.height,
+        },
+        scale: monitor.scale_factor(),
+        height,
+    };
+
+    let generation = state.generation.fetch_add(1, Ordering::Relaxed) + 1;
+    state.set_pinned(false);
     if let Ok(mut slot) = state.show_requested.lock() {
         *slot = Some(requested);
     }
 
-    window.set_position(crate::window_position(
-        PhysicalPosition::new(placement.x, placement.y),
-        scale,
-    ))?;
+    let origin = apply_layout(app, layout)?;
+    let window = app
+        .get_webview_window(LABEL)
+        .ok_or_else(|| AppError::internal("popup window missing"))?;
     window.show()?;
     window.set_focus()?;
     window.emit_to(
         LABEL,
         "popup://show",
         ShowPayload {
-            origin: placement.origin,
+            generation,
+            origin,
             hotkey: state.hotkey_label.clone(),
+            reading: read_selection,
         },
     )?;
+
+    if read_selection {
+        let app = app.clone();
+        std::thread::spawn(move || {
+            let (state, set) = match selection::get_selected_files() {
+                Selection::Files(paths) => (FilesState::Files, files::describe(&paths)),
+                Selection::Empty => (FilesState::Empty, FileSet::default()),
+                Selection::PermissionDenied => (FilesState::Permission, FileSet::default()),
+            };
+            // Drop the result if the popup was shown again meanwhile.
+            if app.state::<PopupState>().generation.load(Ordering::Relaxed) == generation {
+                let payload = FilesPayload {
+                    generation,
+                    state,
+                    set,
+                };
+                if let Err(err) = app.emit_to(LABEL, "popup://files", payload) {
+                    eprintln!("[selection] {err:?}");
+                }
+            }
+        });
+    }
     Ok(())
 }
 
 pub fn hide(app: &AppHandle) -> Result<(), AppError> {
+    app.state::<PopupState>().set_pinned(false);
     if let Some(window) = app.get_webview_window(LABEL) {
         window.hide()?;
     }
     Ok(())
+}
+
+/// Fit the window to the content height (logical px), keeping the side of the cursor it opened on.
+pub fn resize(app: &AppHandle, height: f64) -> Result<(), AppError> {
+    let state = app.state::<PopupState>();
+    let layout = state
+        .layout
+        .lock()
+        .map_err(|_| AppError::internal("popup layout poisoned"))?
+        .map(|l| Layout {
+            height: height.clamp(MIN_HEIGHT, MAX_HEIGHT),
+            ..l
+        });
+    if let Some(layout) = layout {
+        apply_layout(app, layout)?;
+    }
+    Ok(())
+}
+
+/// Size and position the window for `layout`, and remember it.
+fn apply_layout(app: &AppHandle, layout: Layout) -> Result<Origin, AppError> {
+    let window = app
+        .get_webview_window(LABEL)
+        .ok_or_else(|| AppError::internal("popup window missing"))?;
+    let scale = layout.scale;
+    let px = |v: f64| (v * scale).round() as u32;
+    let size = (px(WIDTH), px(layout.height));
+    let placement = match layout.anchor {
+        Anchor::Cursor => {
+            place_at_cursor(layout.cursor, size, px(MAX_HEIGHT), layout.work_area, scale)
+        }
+        Anchor::Center => place_centered(size, layout.work_area),
+    };
+
+    window.set_size(LogicalSize::new(WIDTH, layout.height))?;
+    window.set_position(crate::window_position(
+        PhysicalPosition::new(placement.x, placement.y),
+        scale,
+    ))?;
+    if let Ok(mut slot) = app.state::<PopupState>().layout.lock() {
+        *slot = Some(layout);
+    }
+    Ok(placement.origin)
 }

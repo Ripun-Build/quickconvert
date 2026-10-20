@@ -20,9 +20,37 @@ export type PopupOrigin = "top-left" | "top-right" | "bottom-left" | "bottom-rig
 
 /** Payload of the `popup://show` event. */
 export interface PopupShowPayload {
+  generation: number;
   origin: PopupOrigin;
   /** Display label of the registered hotkey, e.g. "⌃⇧Space". */
   hotkey: string;
+  /** True while the Finder/Explorer selection is being read; `popup://files` follows. */
+  reading: boolean;
+}
+
+/** `files::FileKind` */
+export type FileKind = "image" | "pdf";
+
+/** `files::FileInfo` */
+export interface FileInfo {
+  path: string;
+  name: string;
+  kind: FileKind;
+  /** Bytes. */
+  size: number;
+}
+
+/** `files::FileSet`: supported files in selection order, plus how many inputs were skipped. */
+export interface FileSet {
+  files: FileInfo[];
+  unsupported: number;
+}
+
+/** Payload of the `popup://files` event (`popup::FilesPayload`). */
+export interface PopupFilesPayload {
+  generation: number;
+  state: "files" | "empty" | "permission";
+  set: FileSet;
 }
 
 /** Payload of the `job://progress` event. */

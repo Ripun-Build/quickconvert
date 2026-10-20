@@ -42,6 +42,8 @@ All colours, radii, spacing and type sizes come from these CSS variables. Tailwi
   --radius-card: 12px;
   --radius-row: 8px;
   --radius-control: 7px;
+  --radius-thumb: 6px;
+  --radius-kbd: 5px;
   --radius-pill: 999px;
 
   /* Elevation */

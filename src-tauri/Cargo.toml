@@ -25,6 +25,8 @@ serde_json = "1"
 thiserror = "2.0.21"
 tauri-plugin-global-shortcut = "2"
 window-vibrancy = "0.8.1"
+tauri-plugin-dialog = "2"
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp", "bmp", "gif", "tiff"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
@@ -34,3 +36,7 @@ lto = true
 opt-level = 3
 panic = "abort"
 strip = true
+
+# Optimise dependencies in dev builds so image decoding (thumbnails) stays fast.
+[profile.dev.package."*"]
+opt-level = 2

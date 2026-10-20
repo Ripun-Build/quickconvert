@@ -29,6 +29,8 @@
   --radius-card: 12px;
   --radius-row: 8px;
   --radius-control: 7px;
+  --radius-thumb: 6px; /* file thumbnails */
+  --radius-kbd: 5px; /* shortcut keys */
   --radius-pill: 999px;
 
   /* Elevation */

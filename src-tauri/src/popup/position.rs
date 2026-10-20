@@ -47,9 +47,13 @@ pub struct Placement {
 }
 
 /// Top-left at cursor + offset; flip to the left/above when it would overflow; clamp inside the work area.
+///
+/// The vertical flip is decided with `flip_height` (the tallest the popup can grow) rather than the
+/// current height, so a popup whose content grows later never jumps to the other side of the cursor.
 pub fn place_at_cursor(
     cursor: (f64, f64),
     size: (u32, u32),
+    flip_height: u32,
     work_area: Rect,
     scale: f64,
 ) -> Placement {
@@ -59,7 +63,7 @@ pub fn place_at_cursor(
     let (cx, cy) = (cursor.0.round() as i32, cursor.1.round() as i32);
 
     let flip_x = cx + offset + w > work_area.right() - margin;
-    let flip_y = cy + offset + h > work_area.bottom() - margin;
+    let flip_y = cy + offset + (flip_height.max(size.1) as i32) > work_area.bottom() - margin;
     let x = if flip_x { cx - offset - w } else { cx + offset };
     let y = if flip_y { cy - offset - h } else { cy + offset };
 
@@ -107,13 +111,13 @@ mod tests {
 
     #[test]
     fn opens_below_right_of_cursor() {
-        let p = place_at_cursor((500.0, 300.0), POPUP, SCREEN, 1.0);
+        let p = place_at_cursor((500.0, 300.0), POPUP, POPUP.1, SCREEN, 1.0);
         assert_eq!((p.x, p.y, p.origin), (512, 312, Origin::TopLeft));
     }
 
     #[test]
     fn flips_left_near_right_edge() {
-        let p = place_at_cursor((1300.0, 300.0), POPUP, SCREEN, 1.0);
+        let p = place_at_cursor((1300.0, 300.0), POPUP, POPUP.1, SCREEN, 1.0);
         assert_eq!(
             (p.x, p.y, p.origin),
             (1300 - 12 - 360, 312, Origin::TopRight)
@@ -122,7 +126,7 @@ mod tests {
 
     #[test]
     fn flips_up_near_bottom_edge() {
-        let p = place_at_cursor((500.0, 850.0), POPUP, SCREEN, 1.0);
+        let p = place_at_cursor((500.0, 850.0), POPUP, POPUP.1, SCREEN, 1.0);
         assert_eq!(
             (p.x, p.y, p.origin),
             (512, 850 - 12 - 176, Origin::BottomLeft)
@@ -131,7 +135,7 @@ mod tests {
 
     #[test]
     fn flips_both_in_bottom_right_corner() {
-        let p = place_at_cursor((1435.0, 895.0), POPUP, SCREEN, 1.0);
+        let p = place_at_cursor((1435.0, 895.0), POPUP, POPUP.1, SCREEN, 1.0);
         assert_eq!(p.origin, Origin::BottomRight);
         assert_eq!((p.x, p.y), (1435 - 12 - 360, 895 - 12 - 176));
     }
@@ -139,7 +143,7 @@ mod tests {
     #[test]
     fn clamps_inside_work_area_near_top_left() {
         // Cursor in the menu bar area above the work area.
-        let p = place_at_cursor((2.0, 5.0), POPUP, SCREEN, 1.0);
+        let p = place_at_cursor((2.0, 5.0), POPUP, POPUP.1, SCREEN, 1.0);
         assert_eq!((p.x, p.y), (14, 25 + 8));
     }
 
@@ -151,7 +155,7 @@ mod tests {
             width: 300,
             height: 150,
         };
-        let p = place_at_cursor((100.0, 100.0), POPUP, tiny, 1.0);
+        let p = place_at_cursor((100.0, 100.0), POPUP, POPUP.1, tiny, 1.0);
         assert_eq!((p.x, p.y), (8, 8));
     }
 
@@ -164,10 +168,10 @@ mod tests {
             height: 1750,
         };
         let size = (720, 352);
-        let p = place_at_cursor((1000.0, 600.0), size, retina, 2.0);
+        let p = place_at_cursor((1000.0, 600.0), size, size.1, retina, 2.0);
         assert_eq!((p.x, p.y), (1024, 624));
 
-        let p = place_at_cursor((2870.0, 1790.0), size, retina, 2.0);
+        let p = place_at_cursor((2870.0, 1790.0), size, size.1, retina, 2.0);
         assert_eq!(p.origin, Origin::BottomRight);
         assert_eq!((p.x, p.y), (2870 - 24 - 720, 1790 - 24 - 352));
     }
@@ -180,7 +184,7 @@ mod tests {
             width: 1920,
             height: 1040,
         };
-        let p = place_at_cursor((-100.0, -150.0), POPUP, left, 1.0);
+        let p = place_at_cursor((-100.0, -150.0), POPUP, POPUP.1, left, 1.0);
         assert_eq!(p.origin, Origin::TopRight);
         assert_eq!((p.x, p.y), (-100 - 12 - 360, -138));
         assert!(p.x >= left.x + 8 && p.x + 360 <= left.right() - 8);
@@ -190,5 +194,19 @@ mod tests {
     fn centers_in_work_area() {
         let p = place_centered(POPUP, SCREEN);
         assert_eq!((p.x, p.y, p.origin), (540, 25 + 349, Origin::Center));
+    }
+
+    #[test]
+    fn flips_up_early_when_popup_may_grow() {
+        // 176 px fits below, but the popup can grow to 480 px, so open above.
+        let p = place_at_cursor((500.0, 600.0), POPUP, 480, SCREEN, 1.0);
+        assert_eq!(p.origin, Origin::BottomLeft);
+        assert_eq!(p.y, 600 - 12 - 176);
+    }
+
+    #[test]
+    fn stays_below_when_max_height_fits() {
+        let p = place_at_cursor((500.0, 300.0), POPUP, 480, SCREEN, 1.0);
+        assert_eq!((p.y, p.origin), (312, Origin::TopLeft));
     }
 }

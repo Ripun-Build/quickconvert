@@ -1,13 +1,12 @@
 pub mod commands;
 pub mod convert;
 pub mod errors;
+pub mod files;
 pub mod jobs;
 pub mod output;
 pub mod popup;
 pub mod selection;
 pub mod settings;
-
-use std::sync::Mutex;
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
@@ -15,17 +14,21 @@ use tauri::{App, AppHandle, Manager, Monitor, PhysicalPosition, Position, Window
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 use errors::AppError;
+use files::ThumbnailCache;
 use popup::{Anchor, PopupState};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
                     if event.state() == ShortcutState::Pressed {
-                        log_err(popup::show(app, Anchor::Cursor));
+                        // Must run before the popup takes focus from Finder.
+                        let read_selection = selection::source_is_frontmost();
+                        log_err(popup::show(app, Anchor::Cursor, read_selection));
                     }
                 })
                 .build(),
@@ -34,6 +37,11 @@ pub fn run() {
             commands::hide_popup,
             commands::popup_shown,
             commands::blur_enabled,
+            commands::resize_popup,
+            commands::set_popup_pinned,
+            commands::focus_popup,
+            commands::describe_files,
+            commands::thumbnail,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -46,18 +54,18 @@ pub fn run() {
                 eprintln!("[hotkey] {hotkey_label} is already in use; couldn't register it");
             }
 
-            app.manage(PopupState {
-                hotkey_label: hotkey_label.to_string(),
-                blur,
-                show_requested: Mutex::new(None),
-            });
+            app.manage(PopupState::new(hotkey_label.to_string(), blur));
+            app.manage(ThumbnailCache::default());
             build_tray(app, (!hotkey_ok).then_some(hotkey_label))?;
 
             if let Some(window) = app.get_webview_window(popup::LABEL) {
                 let handle = app.handle().clone();
                 window.on_window_event(move |event| {
+                    let pinned = handle.state::<PopupState>().is_pinned();
                     if let WindowEvent::Focused(false) = event {
-                        log_err(popup::hide(&handle));
+                        if !pinned {
+                            log_err(popup::hide(&handle));
+                        }
                     }
                 });
             }
@@ -86,7 +94,7 @@ fn build_tray(app: &App, hotkey_conflict: Option<&str>) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id().as_ref() {
-            "open" => log_err(popup::show(app, Anchor::Center)),
+            "open" => log_err(popup::show(app, Anchor::Center, false)),
             "quit" => app.exit(0),
             _ => {}
         });

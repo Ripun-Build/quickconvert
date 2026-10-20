@@ -24,13 +24,13 @@ Work top to bottom. One milestone per commit (`M<n>: summary`). Each milestone m
 - [x] Measure: popup visible ≤ 150 ms after hotkey (log timing in dev)
 
 ## M2 — Getting files in
-- [ ] `get_selected_files()` for host OS (Windows COM on STA thread / macOS AppleScript)
-- [ ] Graceful fallback: no selection / permission denied → DropZone with hint
-- [ ] Drag-and-drop onto popup and "Choose files…" dialog
-- [ ] `thumbnail(path)` command (small PNG data URL, cached by path+mtime)
-- [ ] FileChip (single + multi fan), unsupported-file count
-- [ ] `lib/actions.ts` registry + suggestion logic (SPECS §6) with unit tests
-- [ ] ActionList view: search filter, groups, ↑/↓/Enter/1–9 keyboard, shared highlight
+- [x] `get_selected_files()` for host OS (Windows COM on STA thread / macOS AppleScript)
+- [x] Graceful fallback: no selection / permission denied → DropZone with hint
+- [x] Drag-and-drop onto popup and "Choose files…" dialog
+- [x] `thumbnail(path)` command (small PNG data URL, cached by path+mtime)
+- [x] FileChip (single + multi fan), unsupported-file count
+- [x] `lib/actions.ts` registry + suggestion logic (SPECS §6) with unit tests
+- [x] ActionList view: search filter, groups, ↑/↓/Enter/1–9 keyboard, shared highlight
 
 ## M3 — Job runner + first conversions
 - [ ] `jobs.rs`: spawn_blocking, `job://progress` events, cancel flag, per-file results

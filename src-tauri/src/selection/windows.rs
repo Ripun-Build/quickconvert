@@ -1,7 +1,12 @@
-//! Explorer selection via Shell COM on an STA thread. Stub until the Windows port (Phase 2).
+//! Explorer selection via Shell COM on an STA thread. Stub until the Windows port (Phase 2):
+//! the popup then opens in the drop zone.
 
-use std::path::PathBuf;
+use super::Selection;
 
-pub fn get_selected_files() -> Vec<PathBuf> {
-    Vec::new()
+pub fn source_is_frontmost() -> bool {
+    false
+}
+
+pub fn get_selected_files() -> Selection {
+    Selection::Empty
 }
