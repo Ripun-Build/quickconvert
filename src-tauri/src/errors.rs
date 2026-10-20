@@ -40,6 +40,20 @@ impl AppError {
     }
 }
 
+impl AppError {
+    pub fn internal(detail: impl Into<String>) -> Self {
+        AppError::Internal {
+            detail: detail.into(),
+        }
+    }
+}
+
+impl From<tauri::Error> for AppError {
+    fn from(err: tauri::Error) -> Self {
+        AppError::internal(err.to_string())
+    }
+}
+
 impl Serialize for AppError {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut s = serializer.serialize_struct("AppError", 2)?;

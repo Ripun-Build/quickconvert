@@ -1,6 +1,7 @@
 // The ONLY file that calls invoke()/listen(). Every Rust command gets a typed wrapper here.
 import { invoke, type InvokeArgs } from "@tauri-apps/api/core";
-import type { AppError } from "./types";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { AppError, PopupShowPayload } from "./types";
 
 export function isAppError(value: unknown): value is AppError {
   return (
@@ -12,7 +13,7 @@ export function isAppError(value: unknown): value is AppError {
 }
 
 /** Invoke a command and normalise any rejection into an `AppError`. */
-export async function call<T>(command: string, args?: InvokeArgs): Promise<T> {
+async function call<T>(command: string, args?: InvokeArgs): Promise<T> {
   try {
     return await invoke<T>(command, args);
   } catch (err) {
@@ -21,3 +22,16 @@ export async function call<T>(command: string, args?: InvokeArgs): Promise<T> {
     throw fallback;
   }
 }
+
+// ---- Popup ----
+
+export const hidePopup = () => call<void>("hide_popup");
+
+/** Tell Rust the popup painted its first frame (dev latency log). */
+export const popupShown = () => call<void>("popup_shown");
+
+/** Whether native blur is active; false → use the solid background. */
+export const blurEnabled = () => call<boolean>("blur_enabled");
+
+export const onPopupShow = (handler: (payload: PopupShowPayload) => void): Promise<UnlistenFn> =>
+  listen<PopupShowPayload>("popup://show", (event) => handler(event.payload));

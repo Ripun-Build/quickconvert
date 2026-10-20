@@ -14,14 +14,14 @@ Work top to bottom. One milestone per commit (`M<n>: summary`). Each milestone m
 - [x] App runs with `npm run tauri dev`
 
 ## M1 — Tray + hotkey + popup shell
-- [ ] Tray icon with menu: Open QuickConvert · Settings… · Quit
-- [ ] No Dock icon on macOS (`ActivationPolicy::Accessory`); skip taskbar on Windows
-- [ ] Popup window created once at startup: transparent, borderless, always-on-top, hidden
-- [ ] Native blur via `window-vibrancy` with solid fallback (`data-blur="off"`)
-- [ ] Global hotkey (defaults per SPECS §4) shows the popup at the cursor
-- [ ] `popup/position.rs`: cursor monitor detection, flip near edges, clamp to work area with 8 px margin, HiDPI-correct; unit tests for the maths
-- [ ] Appear/hide animations (DESIGN §5); Esc and focus-loss hide
-- [ ] Measure: popup visible ≤ 150 ms after hotkey (log timing in dev)
+- [x] Tray icon with menu: Open QuickConvert · Settings… · Quit
+- [x] No Dock icon on macOS (`ActivationPolicy::Accessory`); skip taskbar on Windows
+- [x] Popup window created once at startup: transparent, borderless, always-on-top, hidden
+- [x] Native blur via `window-vibrancy` with solid fallback (`data-blur="off"`)
+- [x] Global hotkey (defaults per SPECS §4) shows the popup at the cursor
+- [x] `popup/position.rs`: cursor monitor detection, flip near edges, clamp to work area with 8 px margin, HiDPI-correct; unit tests for the maths
+- [x] Appear/hide animations (DESIGN §5); Esc and focus-loss hide
+- [x] Measure: popup visible ≤ 150 ms after hotkey (log timing in dev)
 
 ## M2 — Getting files in
 - [ ] `get_selected_files()` for host OS (Windows COM on STA thread / macOS AppleScript)

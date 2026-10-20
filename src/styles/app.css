@@ -64,7 +64,8 @@
   body {
     font: var(--text-body);
     color: var(--text-primary);
-    background: var(--bg-solid);
+    /* Transparent window: the popup panel draws its own background over the native blur. */
+    background: transparent;
     -webkit-font-smoothing: antialiased;
     user-select: none;
   }

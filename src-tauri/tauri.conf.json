@@ -12,17 +12,26 @@
   "app": {
     "windows": [
       {
-        "label": "main",
+        "label": "popup",
         "title": "QuickConvert",
         "width": 360,
-        "height": 480,
+        "height": 176,
+        "visible": false,
+        "transparent": true,
+        "decorations": false,
+        "shadow": true,
+        "alwaysOnTop": true,
         "resizable": false,
-        "center": true
+        "skipTaskbar": true,
+        "visibleOnAllWorkspaces": true,
+        "acceptFirstMouse": true,
+        "focus": true
       }
     ],
     "security": {
       "csp": null
-    }
+    },
+    "macOSPrivateApi": true
   },
   "bundle": {
     "active": true,

@@ -15,6 +15,16 @@ export interface AppError {
   message: string;
 }
 
+/** Popup corner nearest the cursor (`popup::position::Origin`); used as transform-origin. */
+export type PopupOrigin = "top-left" | "top-right" | "bottom-left" | "bottom-right" | "center";
+
+/** Payload of the `popup://show` event. */
+export interface PopupShowPayload {
+  origin: PopupOrigin;
+  /** Display label of the registered hotkey, e.g. "⌃⇧Space". */
+  hotkey: string;
+}
+
 /** Payload of the `job://progress` event. */
 export interface JobProgress {
   jobId: string;

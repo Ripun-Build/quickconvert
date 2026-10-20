@@ -153,10 +153,10 @@ Icons (lucide-react): FileText (PDF), Images, Image, Minimize2 (compress), Scali
 
 ## 6. Material & window
 
-- Window: transparent, borderless, no shadow from OS (we draw `--shadow-popup` in CSS), always on top, skip taskbar.
-- Native blur behind (`window-vibrancy`), then `--bg-glass` overlay in CSS, plus a 1 px inner highlight using `--border-glass` (`box-shadow: inset 0 0 0 1px var(--border-glass)`).
+- Window: transparent, borderless, **exactly the size of the visible popup**, with the OS window shadow on, always on top, skip taskbar.
+- Native blur behind (`window-vibrancy`, rounded to `--radius-popup` = 18 px), then `--bg-glass` overlay in CSS, plus a 1 px inner highlight using `--border-glass` (`box-shadow: inset 0 0 0 1px var(--border-glass)`).
 - If vibrancy is unavailable, set `data-blur="off"` on `<html>` and use `--bg-solid`.
-- Because the CSS draws the shadow, the native window must be 24 px larger on each side than the visible popup; position calculations account for this inset.
+- Why no CSS shadow: the native blur view fills the whole window, so a transparent 24 px margin for a CSS shadow would show as a blurred frame. `--shadow-popup` is kept for in-page elevated surfaces only (decided in M1).
 
 ## 7. Copy & tone
 

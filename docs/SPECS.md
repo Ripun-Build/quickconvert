@@ -39,7 +39,7 @@ If no files are selected (or selection can't be read), the popup opens in **Drop
 
 | Trigger | Phase | Notes |
 |---|---|---|
-| Global hotkey | v1 | Default **Windows: `Ctrl+Alt+Space`**, **macOS: `⌥⇧Space`**. Configurable. If registration fails (conflict), show a tray notification and open Settings → Hotkey. |
+| Global hotkey | v1 | Default **Windows: `Ctrl+Alt+Space`**, **macOS: `⌃⇧Space`** (changed from ⌥⇧Space, which file-search tools commonly use). Configurable. If registration fails (conflict), show a tray notification and open Settings → Hotkey. |
 | Tray icon menu | v1 | Items: Open QuickConvert · Settings… · Quit. "Open" shows the popup centred on the active monitor in Drop Zone state. |
 | Drag & drop onto popup | v1 | Works in any popup state; replaces current selection. |
 | Explorer/Finder right-click entry | Phase 3 | Windows shell context menu / macOS Quick Action. |
