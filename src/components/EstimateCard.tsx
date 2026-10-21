@@ -40,7 +40,7 @@ export function EstimateCard({ path, request, label }: { path: string; request: 
     <div className="flex flex-col gap-0.5 rounded-card bg-surface px-3 py-2.5" aria-live="polite">
       <span className="type-caption text-tertiary">{label}</span>
       {error ? (
-        <span className="type-body text-danger">{error}</span>
+        <span className="type-body text-error">{error}</span>
       ) : estimate ? (
         <>
           <span className={`type-title flex items-center gap-1.5 tabular-nums ${loading ? "opacity-50" : ""}`}>

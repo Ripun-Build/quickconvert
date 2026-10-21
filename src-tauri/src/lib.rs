@@ -166,9 +166,14 @@ fn build_tray(app: &App) -> tauri::Result<()> {
             "quit" => app.exit(0),
             _ => {}
         });
-    // Placeholder: the app icon. Template tray icons arrive in M7.
-    if let Some(icon) = app.default_window_icon() {
-        tray = tray.icon(icon.clone());
+    // Black-on-transparent template image: macOS tints it for light and dark menu bars.
+    match tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png")) {
+        Ok(icon) => tray = tray.icon(icon).icon_as_template(true),
+        Err(_) => {
+            if let Some(icon) = app.default_window_icon() {
+                tray = tray.icon(icon.clone());
+            }
+        }
     }
     tray.build(app)?;
     Ok(())

@@ -114,7 +114,7 @@ function FieldControl({
               bad ? "ring-1 ring-danger focus:ring-danger" : "focus:ring-focus-ring"
             }`}
           />
-          <span className={`type-caption ${bad ? "text-danger" : "text-tertiary"}`}>{field.hint}</span>
+          <span className={`type-caption ${bad ? "text-error" : "text-tertiary"}`}>{field.hint}</span>
         </div>
       );
     }

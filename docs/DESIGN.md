@@ -26,13 +26,18 @@ All colours, radii, spacing and type sizes come from these CSS variables. Tailwi
 
   /* Text */
   --text-primary: rgba(0, 0, 0, 0.88);
-  --text-secondary: rgba(0, 0, 0, 0.56);
-  --text-tertiary: rgba(0, 0, 0, 0.36);
+  --text-secondary: rgba(0, 0, 0, 0.66);   /* 7.1:1 on --bg-solid */
+  --text-tertiary: rgba(0, 0, 0, 0.55);    /* 4.7:1 */
   --text-on-accent: #FFFFFF;
+  --text-accent: #0058D0;                  /* links, selected labels: 5.8:1 (5.0:1 on --surface-selected) */
+  --text-danger: #D70015;                  /* error text: 4.9:1 */
+  --text-warning: #B25000;                 /* warning text: 4.8:1 */
 
   /* Accent & status */
   --accent: #007AFF;
   --accent-pressed: #0062CC;
+  --accent-fill: #0064E0;                  /* primary buttons: white text 5.4:1 */
+  --accent-fill-pressed: #0056C2;
   --success: #34C759;
   --warning: #FF9F0A;
   --danger: #FF3B30;
@@ -76,10 +81,15 @@ All colours, radii, spacing and type sizes come from these CSS variables. Tailwi
     --separator: rgba(255, 255, 255, 0.10);
     --border-glass: rgba(255, 255, 255, 0.10);
     --text-primary: rgba(255, 255, 255, 0.92);
-    --text-secondary: rgba(255, 255, 255, 0.60);
-    --text-tertiary: rgba(255, 255, 255, 0.38);
+    --text-secondary: rgba(255, 255, 255, 0.64);
+    --text-tertiary: rgba(255, 255, 255, 0.48);
+    --text-accent: #4AA3FF;
+    --text-danger: #FF453A;
+    --text-warning: #FF9F0A;
     --accent: #0A84FF;
     --accent-pressed: #0070E0;
+    --accent-fill: #0A6CE0;
+    --accent-fill-pressed: #0A5FC4;
     --success: #30D158;
     --warning: #FF9F0A;
     --danger: #FF453A;
@@ -179,7 +189,9 @@ Icons (lucide-react): FileText (PDF), Images, Image, Minimize2 (compress), Scali
 
 ## 8. Accessibility
 
-- Contrast ≥ 4.5:1 for body text on `--bg-solid` in both themes; check secondary text too.
+- Contrast ≥ 4.5:1 for all text on `--bg-solid` in both themes (checked in M7). Apple's `--accent`, `--danger` and `--warning` are for fills, icons and rings; words use the `--text-*` versions (Tailwind `text-link`, `text-error`, `text-caution`), and primary buttons use `--accent-fill`.
+- Focus rings are a 3 px `--focus-ring` outline (not a shadow), so controls with their own shadow still show them.
+- Reduced motion: a global rule turns transitions into short fades; Framer Motion follows via `MotionConfig reducedMotion="user"`.
 - All interactive elements have visible `:focus-visible` rings.
 - ARIA: popup root `role="dialog"` `aria-label="QuickConvert"`; action list is `role="listbox"` with `aria-activedescendant`.
 - Hit targets ≥ 28 px tall.

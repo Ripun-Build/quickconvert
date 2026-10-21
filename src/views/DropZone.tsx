@@ -24,7 +24,7 @@ export function DropZone({ hint, hotkey, dragging, onChoose }: Props) {
           dragging ? "border-accent bg-surface-selected" : "border-separator"
         }`}
       >
-        <FileUp size={24} strokeWidth={1.5} className={dragging ? "text-accent" : "text-tertiary"} />
+        <FileUp size={24} strokeWidth={1.5} className={dragging ? "text-link" : "text-tertiary"} />
         <div>
           <p className="type-body-strong text-primary">Drop files here</p>
           <p className="type-caption mt-1 text-secondary">
@@ -33,6 +33,7 @@ export function DropZone({ hint, hotkey, dragging, onChoose }: Props) {
         </div>
         <button
           type="button"
+          autoFocus
           onClick={onChoose}
           className="type-body-strong h-[30px] rounded-control bg-surface px-3 text-primary inset-ring inset-ring-separator active:scale-[0.97]"
         >

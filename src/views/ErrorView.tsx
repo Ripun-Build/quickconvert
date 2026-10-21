@@ -45,7 +45,7 @@ export function ErrorView({ done, onRetry, onBack }: Props) {
         <AlertTriangle
           size={22}
           strokeWidth={1.75}
-          className={`mt-0.5 shrink-0 ${done.cancelled ? "text-tertiary" : "text-danger"}`}
+          className={`mt-0.5 shrink-0 ${done.cancelled ? "text-tertiary" : "text-error"}`}
         />
         <div className="min-w-0">
           <h2 className="type-title text-primary">{title}</h2>
@@ -60,7 +60,7 @@ export function ErrorView({ done, onRetry, onBack }: Props) {
 
       {showList && (
         <div>
-          <button type="button" className="type-caption text-accent" onClick={() => setDetails((d) => !d)}>
+          <button type="button" className="type-caption text-link" onClick={() => setDetails((d) => !d)}>
             {details ? "Hide details" : "Show details"}
           </button>
           {details && (

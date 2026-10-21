@@ -138,7 +138,7 @@ export function PdfPagesEditor({ file, defaultDpi = 150, onBack, onRun }: Props)
                   rangeError ? "ring-1 ring-danger focus:ring-danger" : "focus:ring-focus-ring"
                 }`}
               />
-              <span className={`type-caption ${rangeError ? "text-danger" : "text-tertiary"}`}>
+              <span className={`type-caption ${rangeError ? "text-error" : "text-tertiary"}`}>
                 {rangeError ?? "Click pages, Shift-click for a range, or type them."}
               </span>
             </section>
@@ -174,7 +174,7 @@ export function PdfPagesEditor({ file, defaultDpi = 150, onBack, onRun }: Props)
                       }`}
                     >
                       <span className="flex w-full items-baseline justify-between gap-2">
-                        <span className={`type-body-strong ${on ? "text-accent" : "text-primary"}`}>{option.label}</span>
+                        <span className={`type-body-strong ${on ? "text-link" : "text-primary"}`}>{option.label}</span>
                         {sample && (
                           <span className="type-caption text-tertiary tabular-nums">
                             {pixels(sample.width, option.dpi)} × {pixels(sample.height, option.dpi)} px

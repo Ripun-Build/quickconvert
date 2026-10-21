@@ -204,11 +204,11 @@ HEIC/HEIF in Phase 2.
 
 ## 14. Acceptance criteria for v1
 
-- [ ] Selecting 5 JPGs in Explorer/Finder and pressing the hotkey shows the popup at the cursor with "Combine into PDF" as the first suggestion.
-- [ ] Enter on that action produces a 5-page PDF next to the originals in ≤ 1 s for typical phone photos.
-- [ ] A 10-page PDF → JPG at 150 DPI produces 10 correctly ordered files in a `… pages` folder.
-- [ ] Compress to 50 KB on a 4 MB photo yields a file ≤ 50 KB, and reports size/quality.
-- [ ] Originals are byte-identical before and after every action (tested).
-- [ ] Popup never appears off-screen on any monitor, at any DPI.
-- [ ] Every v1 action works using only the keyboard.
-- [ ] Light and dark modes match DESIGN.md.
+- [x] Selecting 5 JPGs in Explorer/Finder and pressing the hotkey shows the popup at the cursor with "Combine into PDF" as the first suggestion.
+- [x] Enter on that action produces a 5-page PDF next to the originals in ≤ 1 s for typical phone photos.
+- [x] A 10-page PDF → JPG at 150 DPI produces 10 correctly ordered files in a `… pages` folder.
+- [x] Compress to 50 KB on a 4 MB photo yields a file ≤ 50 KB, and reports size/quality.
+- [x] Originals are byte-identical before and after every action (tested).
+- [x] Popup never appears off-screen on any monitor, at any DPI.
+- [x] Every v1 action works using only the keyboard.
+- [x] Light and dark modes match DESIGN.md.

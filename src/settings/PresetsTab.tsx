@@ -95,7 +95,7 @@ export function PresetsTab() {
                 }`}
               >
                 <span className="min-w-0 flex-1">
-                  <span className={`type-body-strong block truncate ${on ? "text-accent" : "text-primary"}`}>{preset.label}</span>
+                  <span className={`type-body-strong block truncate ${on ? "text-link" : "text-primary"}`}>{preset.label}</span>
                   <span className="type-caption block truncate text-secondary">{presetSummary(preset)}</span>
                 </span>
                 {builtin && <span className="type-caption shrink-0 rounded-kbd bg-surface px-1.5 text-tertiary">Example</span>}
@@ -108,14 +108,14 @@ export function PresetsTab() {
           <ToolButton label="Add" onClick={add} icon={<Plus size={14} />} />
           <ToolButton label="Duplicate" onClick={duplicate} icon={<Copy size={14} />} disabled={!current} />
           <ToolButton label="Delete" onClick={remove} icon={<Trash2 size={14} />} disabled={!current} />
-          <button type="button" onClick={() => void restore()} className="type-caption ml-auto flex items-center gap-1 px-2 text-accent hover:underline">
+          <button type="button" onClick={() => void restore()} className="type-caption ml-auto flex items-center gap-1 px-2 text-link hover:underline">
             <RotateCcw size={12} />
             Restore built-in presets
           </button>
         </div>
       </div>
 
-      {error && <p className="type-caption text-danger">{error}</p>}
+      {error && <p className="type-caption text-error">{error}</p>}
       {current && <PresetForm key={current.preset.id} preset={current.preset} builtin={current.builtin} onChange={edit} />}
     </>
   );

@@ -732,4 +732,187 @@ mod tests {
             }
         );
     }
+
+    // ---- SPECS §14 acceptance criteria and the 50-file batch (M7) ----
+
+    /// A phone-sized JPEG (4032 × 3024) with photo-like detail, so file sizes are realistic.
+    fn phone_photo(path: &Path, seed: u32) {
+        let mut state = seed.wrapping_mul(2_654_435_761);
+        let img = RgbImage::from_fn(4032, 3024, |x, y| {
+            state = state.wrapping_mul(1_103_515_245).wrapping_add(12345);
+            let grain = (state >> 27) as u8;
+            Rgb([
+                ((x / 16) as u8).wrapping_add(grain),
+                ((y / 12) as u8).wrapping_add(grain),
+                (((x + y) / 28) as u8).wrapping_add(grain),
+            ])
+        });
+        DynamicImage::ImageRgb8(img)
+            .save_with_format(path, ImageFormat::Jpeg)
+            .unwrap();
+    }
+
+    #[test]
+    fn acceptance_five_phone_photos_become_a_pdf_within_a_second() {
+        let dir = temp_dir("accept-pdf");
+        let photos: Vec<PathBuf> = (0..5)
+            .map(|i| {
+                let p = dir.join(format!("IMG_{i}.jpg"));
+                phone_photo(&p, i);
+                p
+            })
+            .collect();
+        let started = std::time::Instant::now();
+        let done = run_quiet(
+            JobRequest::ImagesToPdf {
+                page_size: PageSize::Fit,
+                margin: Margin::None,
+            },
+            &photos,
+        );
+        let took = started.elapsed();
+        assert_eq!(names(&done), ["IMG_0 +4.pdf"]);
+        let pdf = lopdf::Document::load(&done.outputs[0].path).unwrap();
+        assert_eq!(pdf.get_pages().len(), 5);
+        assert_eq!(
+            done.outputs[0].path,
+            dir.join("IMG_0 +4.pdf").to_string_lossy()
+        );
+        assert!(took.as_millis() < 1000, "took {took:?}");
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn acceptance_ten_page_pdf_becomes_ten_ordered_jpgs_at_150_dpi() {
+        let dir = temp_dir("accept-pages");
+        let pages: Vec<PathBuf> = (0..10)
+            .map(|i| {
+                let p = dir.join(format!("p{i}.png"));
+                DynamicImage::ImageRgb8(RgbImage::from_pixel(
+                    300,
+                    400,
+                    Rgb([i as u8 * 20, 50, 90]),
+                ))
+                .save(&p)
+                .unwrap();
+                p
+            })
+            .collect();
+        let pdf = run_quiet(
+            JobRequest::ImagesToPdf {
+                page_size: PageSize::A4,
+                margin: Margin::None,
+            },
+            &pages,
+        );
+        let pdf_path = PathBuf::from(&pdf.outputs[0].path);
+        let done = run_quiet(
+            JobRequest::PdfToImages {
+                format: OutputFormat::Jpg,
+                dpi: 150,
+                pages: PageSelection::All,
+            },
+            &[pdf_path],
+        );
+        let expected: Vec<String> = (1..=10).map(|n| format!("p0 +9-{n:02}.jpg")).collect();
+        assert_eq!(names(&done), expected);
+        assert!(done
+            .outputs
+            .iter()
+            .all(|o| o.path.contains("/p0 +9 pages/")));
+        // A4 at 150 DPI: 1240 × 1754 px.
+        let first = image::open(&done.outputs[0].path).unwrap();
+        assert_eq!((first.width(), first.height()), (1240, 1754));
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn acceptance_four_mb_photo_compresses_under_50_kb_and_reports_it() {
+        let dir = temp_dir("accept-compress");
+        let photo = dir.join("big.jpg");
+        let img = RgbImage::from_fn(4032, 3024, |x, y| {
+            let n = (x.wrapping_mul(7919) ^ y.wrapping_mul(104_729)) % 64;
+            Rgb([
+                (x % 256) as u8 ^ n as u8,
+                (y % 256) as u8,
+                ((x * y) % 251) as u8,
+            ])
+        });
+        let file = fs::File::create(&photo).unwrap();
+        image::codecs::jpeg::JpegEncoder::new_with_quality(file, 95)
+            .encode_image(&DynamicImage::ImageRgb8(img))
+            .unwrap();
+        let size = fs::metadata(&photo).unwrap().len();
+        assert!(size > 3_000_000, "fixture should be phone-sized, is {size}");
+
+        let done = run_quiet(
+            JobRequest::ImageCompress {
+                target: CompressTarget::Size { max_kb: 50 },
+            },
+            &[photo],
+        );
+        let out = &done.outputs[0];
+        assert!(out.bytes <= 50_000, "{} bytes", out.bytes);
+        assert!(out.width.is_some() && out.height.is_some() && out.quality.is_some());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn batch_of_fifty_reports_progress_and_each_failure() {
+        let dir = temp_dir("batch50");
+        let mut inputs = Vec::new();
+        for i in 0..50 {
+            let p = dir.join(format!("photo_{i:02}.png"));
+            if i == 7 || i == 31 {
+                fs::write(&p, b"broken").unwrap();
+            } else {
+                DynamicImage::ImageRgb8(RgbImage::from_pixel(40, 30, Rgb([i as u8, 0, 0])))
+                    .save(&p)
+                    .unwrap();
+            }
+            inputs.push(p);
+        }
+        let progress = Mutex::new(Vec::new());
+        let dirs = places_for_tests();
+        let places = Places {
+            fallback: None,
+            pdfium_dirs: &dirs,
+            output_dir: None,
+        };
+        let request = JobRequest::ImageConvert {
+            format: OutputFormat::Jpg,
+            quality: 80,
+        };
+        let done = run(
+            "t",
+            &request,
+            &inputs,
+            &places,
+            &AtomicBool::new(false),
+            &|i, n, name, pct| {
+                progress.lock().unwrap().push((i, n, name.to_string(), pct));
+            },
+        );
+        assert_eq!(done.outputs.len(), 48);
+        let failed: Vec<_> = done.failures.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(failed, ["photo_07.png", "photo_31.png"]);
+        let progress = progress.into_inner().unwrap();
+        assert_eq!(progress.len(), 51, "one per file plus the final 100%");
+        assert_eq!(progress[10], (10, 50, "photo_10.png".to_string(), 20.0));
+        assert_eq!(progress[50].3, 100.0);
+
+        // Cancel half-way: files already started finish, the rest are skipped.
+        let cancel = AtomicBool::new(false);
+        let request = JobRequest::ImageResize {
+            mode: ResizeMode::Percent { percent: 50.0 },
+        };
+        let done = run("t", &request, &inputs, &places, &cancel, &|i, _, _, _| {
+            if i == 25 {
+                cancel.store(true, Ordering::Relaxed);
+            }
+        });
+        assert!(done.cancelled);
+        assert_eq!(done.outputs.len() + done.failures.len(), 26);
+        fs::remove_dir_all(dir).unwrap();
+    }
 }

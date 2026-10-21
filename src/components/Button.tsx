@@ -4,7 +4,7 @@ type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primar
 export function Button({ variant = "secondary", className = "", type = "button", ...rest }: Props) {
   const look =
     variant === "primary"
-      ? "bg-accent text-on-accent active:bg-accent-pressed"
+      ? "bg-accent-fill text-on-accent active:bg-accent-fill-pressed"
       : "bg-surface text-primary inset-ring inset-ring-separator active:bg-surface-hover";
   return (
     <button

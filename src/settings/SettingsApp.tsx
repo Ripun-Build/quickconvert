@@ -57,7 +57,7 @@ export default function SettingsApp({ initialTab, notice }: { initialTab: string
               onClick={() => setTab(id)}
               aria-current={on ? "page" : undefined}
               className={`flex w-24 flex-col items-center gap-0.5 rounded-control py-1.5 ${
-                on ? "bg-surface-selected text-accent" : "text-secondary hover:bg-surface-hover"
+                on ? "bg-surface-selected text-link" : "text-secondary hover:bg-surface-hover"
               }`}
             >
               <Icon size={20} strokeWidth={1.6} />
@@ -68,7 +68,7 @@ export default function SettingsApp({ initialTab, notice }: { initialTab: string
       </nav>
 
       <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5">
-        {error && <p className="type-caption rounded-control bg-surface px-3 py-2 text-danger">{error}</p>}
+        {error && <p className="type-caption rounded-control bg-surface px-3 py-2 text-error">{error}</p>}
         {!view ? (
           <div className="skeleton h-40 rounded-card" />
         ) : tab === "general" ? (

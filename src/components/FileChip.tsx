@@ -10,7 +10,7 @@ export function FileChip({ set }: { set: FileSet }) {
   const single = files.length === 1;
   const fan = files.slice(0, 3);
   const skipped = unsupported > 0 && (
-    <span className="text-warning">
+    <span className="text-caution">
       {" · "}
       {unsupported} {unsupported === 1 ? "file" : "files"} not supported
     </span>

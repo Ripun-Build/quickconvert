@@ -21,6 +21,12 @@
   --color-on-accent: var(--text-on-accent);
   --color-accent: var(--accent);
   --color-accent-pressed: var(--accent-pressed);
+  --color-accent-fill: var(--accent-fill);
+  --color-accent-fill-pressed: var(--accent-fill-pressed);
+  /* Text colours that pass WCAG AA: use text-link / text-error / text-caution for words. */
+  --color-link: var(--text-accent);
+  --color-error: var(--text-danger);
+  --color-caution: var(--text-warning);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
@@ -74,7 +80,7 @@
   height: 18px;
   background: transparent;
   &:focus-visible {
-    box-shadow: none;
+    outline: none; /* the knob shows the ring instead */
   }
   &::-webkit-slider-runnable-track {
     height: 4px;
@@ -125,8 +131,21 @@
     user-select: none;
   }
 
+  /* An outline, not a shadow, so controls that have their own shadow still show the ring. */
   :focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px var(--focus-ring);
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 0;
+  }
+}
+
+/* Reduced motion (DESIGN §5): no sliding or scaling, only short fades. Framer Motion follows the
+   same setting via <MotionConfig reducedMotion="user">. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-property: opacity, background-color, color, box-shadow !important;
+    transition-duration: 120ms !important;
+    scroll-behavior: auto !important;
   }
 }

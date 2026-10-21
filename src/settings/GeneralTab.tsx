@@ -38,7 +38,7 @@ export function GeneralTab({ view, highlightConflict, onChange, onView }: Props)
             highlightConflict ? "bg-surface-selected inset-ring inset-ring-warning" : "bg-surface"
           }`}
         >
-          <TriangleAlert size={16} strokeWidth={1.75} className="mt-0.5 shrink-0 text-warning" />
+          <TriangleAlert size={16} strokeWidth={1.75} className="mt-0.5 shrink-0 text-caution" />
           <p className="type-body text-primary">{conflict}</p>
         </div>
       )}
@@ -50,14 +50,14 @@ export function GeneralTab({ view, highlightConflict, onChange, onView }: Props)
             <button
               type="button"
               onClick={() => void applyShortcut(null)}
-              className="type-caption text-accent hover:underline"
+              className="type-caption text-link hover:underline"
               title={`Back to ${view.defaultShortcutLabel}`}
             >
               Reset
             </button>
           )}
         </Row>
-        {shortcutError && <p className="type-caption px-3 py-2 text-danger">{shortcutError}</p>}
+        {shortcutError && <p className="type-caption px-3 py-2 text-error">{shortcutError}</p>}
       </Group>
 
       <Group title="General">
@@ -89,7 +89,7 @@ export function GeneralTab({ view, highlightConflict, onChange, onView }: Props)
             }
           />
         </Row>
-        {loginError && <p className="type-caption px-3 py-2 text-danger">{loginError}</p>}
+        {loginError && <p className="type-caption px-3 py-2 text-error">{loginError}</p>}
         <Row label="Hide after saving" description="Close the popup 2.5 seconds after a conversion finishes.">
           <Switch label="Hide after saving" checked={settings.autoHide} onChange={(on) => onChange({ autoHide: on })} />
         </Row>
@@ -145,7 +145,7 @@ function ShortcutRecorder({ label, onRecorded }: { label: string; onRecorded: (a
       onBlur={() => recording && stop()}
       aria-label={recording ? "Press the new shortcut" : `Shortcut ${label}. Click to change.`}
       className={`type-body-strong h-[30px] min-w-[132px] rounded-control px-3 tabular-nums ${
-        recording ? "bg-surface-selected text-accent inset-ring inset-ring-accent" : "bg-surface-raised text-primary shadow-control"
+        recording ? "bg-surface-selected text-link inset-ring inset-ring-accent" : "bg-surface-raised text-primary shadow-control"
       }`}
     >
       {recording ? live || "Type shortcut…" : label}

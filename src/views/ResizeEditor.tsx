@@ -169,7 +169,7 @@ export function ResizeEditor({ files, defaultLongEdge, onBack, onRun }: Props) {
           aria-pressed={locked}
           aria-label={locked ? "Aspect ratio locked" : "Aspect ratio unlocked"}
           title={locked ? "Aspect ratio locked" : "Aspect ratio unlocked"}
-          className={`flex size-[30px] items-center justify-center rounded-control ${locked ? "text-accent" : "text-tertiary"} hover:bg-surface-hover`}
+          className={`flex size-[30px] items-center justify-center rounded-control ${locked ? "text-link" : "text-tertiary"} hover:bg-surface-hover`}
         >
           {locked ? <Link2 size={16} strokeWidth={1.75} /> : <Unlink2 size={16} strokeWidth={1.75} />}
         </button>
@@ -183,7 +183,7 @@ export function ResizeEditor({ files, defaultLongEdge, onBack, onRun }: Props) {
               type="button"
               onClick={() => setSize(scaled(original, pct / 100))}
               className={`type-caption h-[26px] rounded-control px-2 tabular-nums ${
-                image && percentOf(size, original) === pct ? "bg-surface-selected text-accent" : "bg-surface text-secondary"
+                image && percentOf(size, original) === pct ? "bg-surface-selected text-link" : "bg-surface text-secondary"
               }`}
             >
               {pct}%

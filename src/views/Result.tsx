@@ -63,7 +63,7 @@ export function Result({ done, autoHide, onAutoHide }: { done: JobDone; autoHide
         </div>
       </div>
       {done.savedToFallback && (
-        <p className="type-caption text-warning">Couldn't save in this folder, so the file was saved to Downloads.</p>
+        <p className="type-caption text-caution">Couldn't save in this folder, so the file was saved to Downloads.</p>
       )}
       <div className="flex gap-2">
         <Button className="flex-1" onClick={() => void revealOutput(outputs[0]).catch(() => {})}>

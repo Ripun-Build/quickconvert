@@ -66,7 +66,7 @@ export function PresetView({ files, onBack, onRun }: Props) {
                 on ? "bg-surface-selected inset-ring inset-ring-accent" : "bg-surface hover:bg-surface-hover"
               }`}
             >
-              <span className={`type-body-strong ${on ? "text-accent" : "text-primary"}`}>{p.label}</span>
+              <span className={`type-body-strong ${on ? "text-link" : "text-primary"}`}>{p.label}</span>
               <span className="type-caption text-secondary tabular-nums">{presetSummary(p)}</span>
             </button>
           );

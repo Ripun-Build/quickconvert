@@ -71,12 +71,12 @@ Work top to bottom. One milestone per commit (`M<n>: summary`). Each milestone m
 - [x] Output folder, defaults and auto-hide applied across the popup and jobs
 
 ## M7 — Polish + v1 release
-- [ ] Walk through every acceptance criterion in SPECS §14 and fix gaps
-- [ ] Reduced-motion and keyboard-only pass; contrast check in both themes
-- [ ] Batch of 50 files: progress, cancel, per-file failure report
-- [ ] App icon + tray icons (light/dark template on macOS)
-- [ ] `npm run tauri build` produces installer ≤ 25 MB
-- [ ] README with screenshots, install steps, and licences of bundled libraries
+- [x] Walk through every acceptance criterion in SPECS §14 and fix gaps (automated tests + manual check)
+- [x] Reduced-motion and keyboard-only pass; contrast check in both themes (text tokens now WCAG AA)
+- [x] Batch of 50 files: progress, cancel, per-file failure report
+- [x] App icon + tray icons (light/dark template on macOS)
+- [x] `npm run tauri build` produces installer ≤ 25 MB (universal DMG: 14.3 MB)
+- [x] README with screenshots, install steps, and licences of bundled libraries
 
 ## Phase 2 (after v1)
 - [ ] CropEditor (aspect presets, rotate) + `image_crop`

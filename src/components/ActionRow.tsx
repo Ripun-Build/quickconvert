@@ -49,7 +49,7 @@ export function ActionRow({ id, action, shortcut, highlighted, disabledReason, o
       <Icon
         size={18}
         strokeWidth={1.75}
-        className={`relative shrink-0 ${highlighted ? "text-accent" : "text-secondary"}`}
+        className={`relative shrink-0 ${highlighted ? "text-link" : "text-secondary"}`}
       />
       <span className="type-body relative flex-1 truncate text-primary">{action.label}</span>
       {disabled ? (

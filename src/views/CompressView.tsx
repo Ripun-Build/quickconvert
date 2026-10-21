@@ -75,7 +75,7 @@ export function CompressView({ files, onBack, onRun }: Props) {
                 }}
                 className={`type-body h-[30px] rounded-control tabular-nums ${
                   targetKb === kb && !customDraft
-                    ? "bg-surface-selected text-accent inset-ring inset-ring-accent"
+                    ? "bg-surface-selected text-link inset-ring inset-ring-accent"
                     : "bg-surface text-primary hover:bg-surface-hover"
                 }`}
               >

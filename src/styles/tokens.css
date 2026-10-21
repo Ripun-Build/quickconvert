@@ -13,13 +13,20 @@
 
   /* Text */
   --text-primary: rgba(0, 0, 0, 0.88);
-  --text-secondary: rgba(0, 0, 0, 0.56);
-  --text-tertiary: rgba(0, 0, 0, 0.36);
+  --text-secondary: rgba(0, 0, 0, 0.66); /* 7.1:1 on --bg-solid */
+  --text-tertiary: rgba(0, 0, 0, 0.55); /* 4.7:1 */
   --text-on-accent: #ffffff;
+  /* Text versions of the status colours: darker in light mode so they pass WCAG AA (≥ 4.5:1). */
+  --text-accent: #0058d0; /* 5.8:1, 5.0:1 on --surface-selected */
+  --text-danger: #d70015; /* 4.9:1 */
+  --text-warning: #b25000; /* 4.8:1 */
 
   /* Accent & status */
   --accent: #007aff;
   --accent-pressed: #0062cc;
+  /* Primary button fill: white text on it is 5.4:1. */
+  --accent-fill: #0064e0;
+  --accent-fill-pressed: #0056c2;
   --success: #34c759;
   --warning: #ff9f0a;
   --danger: #ff3b30;
@@ -70,10 +77,17 @@
     --separator: rgba(255, 255, 255, 0.1);
     --border-glass: rgba(255, 255, 255, 0.1);
     --text-primary: rgba(255, 255, 255, 0.92);
-    --text-secondary: rgba(255, 255, 255, 0.6);
-    --text-tertiary: rgba(255, 255, 255, 0.38);
+    --text-secondary: rgba(255, 255, 255, 0.64); /* 7.5:1 */
+    --text-tertiary: rgba(255, 255, 255, 0.48); /* 4.9:1 */
+    --text-accent: #4aa3ff; /* 4.8:1 on --surface-selected */
+    --text-danger: #ff453a; /* 5.0:1 */
+    --text-warning: #ff9f0a; /* 8.3:1 */
     --accent: #0a84ff;
     --accent-pressed: #0070e0;
+  --accent-fill: #0a6ce0; /* white text 5.0:1 */
+  --accent-fill-pressed: #0a5fc4;
+    --accent-fill: #0a6ce0; /* white text 5.0:1 */
+    --accent-fill-pressed: #0a5fc4;
     --success: #30d158;
     --warning: #ff9f0a;
     --danger: #ff453a;
@@ -93,10 +107,15 @@
   --separator: rgba(255, 255, 255, 0.1);
   --border-glass: rgba(255, 255, 255, 0.1);
   --text-primary: rgba(255, 255, 255, 0.92);
-  --text-secondary: rgba(255, 255, 255, 0.6);
-  --text-tertiary: rgba(255, 255, 255, 0.38);
+  --text-secondary: rgba(255, 255, 255, 0.64); /* 7.5:1 */
+  --text-tertiary: rgba(255, 255, 255, 0.48); /* 4.9:1 */
+  --text-accent: #4aa3ff; /* 4.8:1 on --surface-selected */
+  --text-danger: #ff453a; /* 5.0:1 */
+  --text-warning: #ff9f0a; /* 8.3:1 */
   --accent: #0a84ff;
   --accent-pressed: #0070e0;
+  --accent-fill: #0a6ce0; /* white text 5.0:1 */
+  --accent-fill-pressed: #0a5fc4;
   --success: #30d158;
   --warning: #ff9f0a;
   --danger: #ff453a;
