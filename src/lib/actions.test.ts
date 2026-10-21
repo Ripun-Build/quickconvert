@@ -1,7 +1,7 @@
 // Run with `npm test` (Node's built-in runner; types are stripped at runtime).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ACTIONS, buildMenu, filterMenu, flatActions, type InputKind } from "./actions.ts";
+import { ACTION_SPECS, ACTIONS, buildMenu, filterMenu, flatActions, type InputKind } from "./actions.ts";
 
 const ids = (kinds: InputKind[]) => flatActions(buildMenu(kinds)).map((a) => a.id);
 const suggested = (kinds: InputKind[]) => buildMenu(kinds).sections.find((s) => s.title === "Suggested")?.actions.map((a) => a.id);
@@ -79,4 +79,29 @@ test("search matches label words, keyword prefixes, and small typos", () => {
 
 test("every action has a unique id", () => {
   assert.equal(new Set(ACTIONS.map((a) => a.id)).size, ACTIONS.length);
+});
+
+test("default options build the requests Rust expects", () => {
+  const request = (id: keyof typeof ACTION_SPECS, overrides = {}) => {
+    const spec = ACTION_SPECS[id]!;
+    return spec.toRequest({ ...spec.defaults, ...overrides });
+  };
+  assert.deepEqual(request("images_to_pdf"), { action: "images_to_pdf", pageSize: "fit", margin: "none" });
+  assert.deepEqual(request("image_convert"), { action: "image_convert", format: "jpg", quality: 85 });
+  assert.deepEqual(request("image_resize"), { action: "image_resize", mode: { kind: "long_edge", px: 1600 } });
+  assert.deepEqual(request("image_resize", { mode: "exact", width: "800" }), {
+    action: "image_resize",
+    mode: { kind: "exact", width: 800, height: 1600, keepAspect: true },
+  });
+  assert.deepEqual(request("pdf_merge"), { action: "pdf_merge" });
+});
+
+test("quality is hidden for PNG; resize shows only the active mode's fields", () => {
+  const convert = ACTION_SPECS.image_convert!;
+  const quality = convert.fields.find((f) => f.key === "quality")!;
+  assert.equal(quality.visible?.({ format: "png" }), false);
+  assert.equal(quality.visible?.({ format: "webp" }), true);
+  const resize = ACTION_SPECS.image_resize!;
+  const shown = resize.fields.filter((f) => !f.visible || f.visible({ mode: "exact" })).map((f) => f.key);
+  assert.deepEqual(shown, ["mode", "width", "height", "keepAspect"]);
 });

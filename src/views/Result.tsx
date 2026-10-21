@@ -1,0 +1,103 @@
+// Success (SPECS §5): check draws in, "Saved", output name(s), Show in folder · Open · Copy path.
+// Auto-hides after 2.5 s unless hovered or focused.
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { Copy, FolderOpen } from "lucide-react";
+import { Button } from "../components/Button";
+import { truncateMiddle } from "../lib/format";
+import { openOutput, revealOutput } from "../lib/ipc";
+import type { JobDone } from "../lib/types";
+
+const AUTO_HIDE_MS = 2500;
+const baseName = (path: string) => path.split(/[\\/]/).pop() ?? path;
+
+export function Result({ done, onAutoHide }: { done: JobDone; onAutoHide: () => void }) {
+  const [engaged, setEngaged] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const outputs = done.outputs;
+  const single = outputs.length === 1;
+
+  useEffect(() => {
+    // Stay open while the user is pointing at it, or when there's a note to read.
+    if (engaged || done.savedToFallback) return;
+    const timer = setTimeout(onAutoHide, AUTO_HIDE_MS);
+    return () => clearTimeout(timer);
+  }, [engaged, done.savedToFallback, onAutoHide]);
+
+  const copy = () => {
+    navigator.clipboard
+      .writeText(outputs.join("\n"))
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1200);
+      })
+      .catch(() => {});
+  };
+
+  return (
+    <div
+      className="flex flex-col gap-3 px-4 pb-3"
+      onMouseEnter={() => setEngaged(true)}
+      onMouseLeave={() => setEngaged(false)}
+      onFocus={() => setEngaged(true)}
+      aria-live="polite"
+    >
+      <div className="flex items-center gap-3">
+        <CheckMark />
+        <div className="min-w-0">
+          <h2 className="type-title text-primary">Saved</h2>
+          <p className="type-caption truncate text-secondary" title={outputs.join("\n")}>
+            {single ? truncateMiddle(baseName(outputs[0]), 40) : `${outputs.length} files`}
+          </p>
+        </div>
+      </div>
+      {done.savedToFallback && (
+        <p className="type-caption text-warning">Couldn't save in this folder, so the file was saved to Downloads.</p>
+      )}
+      <div className="flex gap-2">
+        <Button className="flex-1" onClick={() => void revealOutput(outputs[0]).catch(() => {})}>
+          <FolderOpen size={14} strokeWidth={1.75} />
+          Show in folder
+        </Button>
+        {single && (
+          <Button className="flex-1" onClick={() => void openOutput(outputs[0]).catch(() => {})}>
+            Open
+          </Button>
+        )}
+        <Button className="flex-1" onClick={copy}>
+          <Copy size={14} strokeWidth={1.75} />
+          {copied ? "Copied" : single ? "Copy path" : "Copy paths"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Green check whose stroke draws in (280 ms), then pops (DESIGN §5). */
+function CheckMark() {
+  return (
+    <motion.svg
+      width="32"
+      height="32"
+      viewBox="0 0 32 32"
+      className="shrink-0 text-success"
+      initial={{ scale: 1 }}
+      animate={{ scale: [1, 1.06, 1] }}
+      transition={{ delay: 0.28, duration: 0.24 }}
+      aria-hidden
+    >
+      <circle cx="16" cy="16" r="15" fill="currentColor" opacity="0.15" />
+      <motion.path
+        d="M10 16.5l4 4 8-9"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        initial={{ pathLength: 0 }}
+        animate={{ pathLength: 1 }}
+        transition={{ duration: 0.28, ease: "easeOut" }}
+      />
+    </motion.svg>
+  );
+}

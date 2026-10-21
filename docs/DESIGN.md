@@ -20,6 +20,7 @@ All colours, radii, spacing and type sizes come from these CSS variables. Tailwi
   --surface: rgba(255, 255, 255, 0.60);     /* cards, inputs */
   --surface-hover: rgba(0, 0, 0, 0.05);
   --surface-selected: rgba(0, 122, 255, 0.12);
+  --surface-raised: #FFFFFF;                 /* segmented thumb, slider knob */
   --separator: rgba(0, 0, 0, 0.08);
   --border-glass: rgba(255, 255, 255, 0.55); /* 1px inner highlight */
 
@@ -49,6 +50,8 @@ All colours, radii, spacing and type sizes come from these CSS variables. Tailwi
   /* Elevation */
   --shadow-popup: 0 0 0 0.5px rgba(0,0,0,0.12), 0 12px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08);
 
+  --shadow-control: 0 0.5px 2px rgba(0,0,0,0.25), 0 0 0 0.5px rgba(0,0,0,0.06); /* knobs, thumbs */
+
   /* Spacing scale (4 px base) */
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px;
 
@@ -69,6 +72,7 @@ All colours, radii, spacing and type sizes come from these CSS variables. Tailwi
     --surface: rgba(255, 255, 255, 0.06);
     --surface-hover: rgba(255, 255, 255, 0.08);
     --surface-selected: rgba(10, 132, 255, 0.24);
+    --surface-raised: rgba(255, 255, 255, 0.14);
     --separator: rgba(255, 255, 255, 0.10);
     --border-glass: rgba(255, 255, 255, 0.10);
     --text-primary: rgba(255, 255, 255, 0.92);
@@ -135,6 +139,7 @@ Settings → Appearance sets `data-theme="light" | "dark"` on `<html>`, or remov
 | **TextField** | 30 px, `--surface` bg, radius 7, focus ring 3 px `--focus-ring`. |
 | **ProgressBar** | 4 px, radius pill, `--accent` fill on `--separator` track; indeterminate shimmer when percent unknown. |
 | **Toast-style result** | Check icon draws in (stroke-dashoffset 280 ms), title "Saved", output name, three secondary buttons. |
+| **ResizeEditor** | 720 px wide. Canvas on `--surface`, original size as a dashed `--separator` outline with the image at 15 % behind; live image on top. Handles: `--surface-raised` pills on the right/bottom edges, round corner handle with `--accent` border (keyboard: arrows 1 %, Shift 10 %). W × H label in a `--bg-glass` chip at the corner. Lock = Link/Unlink icon. |
 
 Icons (lucide-react): FileText (PDF), Images, Image, Minimize2 (compress), Scaling (resize), Crop, RotateCw, Combine/Layers (merge), Scissors (split), SlidersHorizontal (options), Settings, Check, AlertTriangle, FolderOpen, Copy.
 

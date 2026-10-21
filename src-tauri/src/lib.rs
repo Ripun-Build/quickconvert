@@ -15,6 +15,7 @@ use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut,
 
 use errors::AppError;
 use files::ThumbnailCache;
+use jobs::Jobs;
 use popup::{Anchor, PopupState};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -25,11 +26,17 @@ pub fn run() {
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
-                    if event.state() == ShortcutState::Pressed {
-                        // Must run before the popup takes focus from Finder.
-                        let read_selection = selection::source_is_frontmost();
-                        log_err(popup::show(app, Anchor::Cursor, read_selection));
+                    if event.state() != ShortcutState::Pressed {
+                        return;
                     }
+                    if app.state::<Jobs>().is_running() {
+                        // Don't reset the popup mid-job; just bring it forward.
+                        log_err(commands::focus_popup(app.clone()));
+                        return;
+                    }
+                    // Must run before the popup takes focus from Finder.
+                    let read_selection = selection::source_is_frontmost();
+                    log_err(popup::show(app, Anchor::Cursor, read_selection));
                 })
                 .build(),
         )
@@ -42,6 +49,11 @@ pub fn run() {
             commands::focus_popup,
             commands::describe_files,
             commands::thumbnail,
+            commands::preview,
+            commands::start_job,
+            commands::cancel_job,
+            commands::open_output,
+            commands::reveal_output,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -56,14 +68,17 @@ pub fn run() {
 
             app.manage(PopupState::new(hotkey_label.to_string(), blur));
             app.manage(ThumbnailCache::default());
+            app.manage(Jobs::default());
             build_tray(app, (!hotkey_ok).then_some(hotkey_label))?;
 
             if let Some(window) = app.get_webview_window(popup::LABEL) {
                 let handle = app.handle().clone();
                 window.on_window_event(move |event| {
-                    let pinned = handle.state::<PopupState>().is_pinned();
                     if let WindowEvent::Focused(false) = event {
-                        if !pinned {
+                        // Drop zone and running jobs keep the popup open (SPECS §5).
+                        let keep = handle.state::<PopupState>().is_pinned()
+                            || handle.state::<Jobs>().is_running();
+                        if !keep {
                             log_err(popup::hide(&handle));
                         }
                     }

@@ -12,6 +12,7 @@
   --color-surface: var(--surface);
   --color-surface-hover: var(--surface-hover);
   --color-surface-selected: var(--surface-selected);
+  --color-surface-raised: var(--surface-raised);
   --color-separator: var(--separator);
   --color-border-glass: var(--border-glass);
   --color-primary: var(--text-primary);
@@ -37,6 +38,7 @@
 
   --shadow-*: initial;
   --shadow-popup: var(--shadow-popup);
+  --shadow-control: var(--shadow-control);
 
   --text-*: initial;
   --spacing: var(--space-1);
@@ -64,6 +66,37 @@
 /* Fade the edges of a scrollable list (DESIGN §3: 12 px mask). */
 @utility scroll-fade {
   mask-image: linear-gradient(to bottom, transparent, black 12px, black calc(100% - 12px), transparent);
+}
+
+/* Slider (DESIGN §4): 4 px track filled up to --fill, 18 px white knob. */
+@utility range-slider {
+  appearance: none;
+  height: 18px;
+  background: transparent;
+  &:focus-visible {
+    box-shadow: none;
+  }
+  &::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: var(--radius-pill);
+    background: linear-gradient(
+      to right,
+      var(--accent) var(--fill, 50%),
+      var(--separator) var(--fill, 50%)
+    );
+  }
+  &::-webkit-slider-thumb {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    margin-top: -7px;
+    border-radius: var(--radius-pill);
+    background: var(--text-on-accent); /* white in both themes */
+    box-shadow: var(--shadow-control);
+  }
+  &:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 3px var(--focus-ring), var(--shadow-control);
+  }
 }
 
 /* Placeholder rows while the selection is read; static when reduced motion is on. */

@@ -15,10 +15,13 @@ use crate::selection::{self, Selection};
 use position::{place_at_cursor, place_centered, Origin, Rect};
 
 pub const LABEL: &str = "popup";
-/// Logical width; height follows the content (`resize`), up to `MAX_HEIGHT`.
+/// Logical sizes. The list views are `WIDTH` wide and as tall as their content (up to `MAX_HEIGHT`);
+/// editor views (resize, later crop) widen to `EDITOR_WIDTH` (SPECS §5).
 const WIDTH: f64 = 360.0;
+const EDITOR_WIDTH: f64 = 720.0;
 const MIN_HEIGHT: f64 = 120.0;
 const MAX_HEIGHT: f64 = 480.0;
+const EDITOR_MAX_HEIGHT: f64 = 560.0;
 
 #[derive(Clone, Copy)]
 pub enum Anchor {
@@ -59,6 +62,7 @@ struct Layout {
     cursor: (f64, f64),
     work_area: Rect,
     scale: f64,
+    width: f64,
     height: f64,
 }
 
@@ -121,6 +125,7 @@ pub fn show(app: &AppHandle, anchor: Anchor, read_selection: bool) -> Result<(),
             height: area.size.height,
         },
         scale: monitor.scale_factor(),
+        width: WIDTH,
         height,
     };
 
@@ -179,15 +184,22 @@ pub fn hide(app: &AppHandle) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Fit the window to the content height (logical px), keeping the side of the cursor it opened on.
-pub fn resize(app: &AppHandle, height: f64) -> Result<(), AppError> {
+/// Fit the window to the content (logical px), keeping the side of the cursor it opened on.
+pub fn resize(app: &AppHandle, width: f64, height: f64) -> Result<(), AppError> {
+    let width = width.clamp(WIDTH, EDITOR_WIDTH);
+    let max_height = if width > WIDTH {
+        EDITOR_MAX_HEIGHT
+    } else {
+        MAX_HEIGHT
+    };
     let state = app.state::<PopupState>();
     let layout = state
         .layout
         .lock()
         .map_err(|_| AppError::internal("popup layout poisoned"))?
         .map(|l| Layout {
-            height: height.clamp(MIN_HEIGHT, MAX_HEIGHT),
+            width,
+            height: height.clamp(MIN_HEIGHT, max_height),
             ..l
         });
     if let Some(layout) = layout {
@@ -203,7 +215,7 @@ fn apply_layout(app: &AppHandle, layout: Layout) -> Result<Origin, AppError> {
         .ok_or_else(|| AppError::internal("popup window missing"))?;
     let scale = layout.scale;
     let px = |v: f64| (v * scale).round() as u32;
-    let size = (px(WIDTH), px(layout.height));
+    let size = (px(layout.width), px(layout.height));
     let placement = match layout.anchor {
         Anchor::Cursor => {
             place_at_cursor(layout.cursor, size, px(MAX_HEIGHT), layout.work_area, scale)
@@ -211,7 +223,7 @@ fn apply_layout(app: &AppHandle, layout: Layout) -> Result<Origin, AppError> {
         Anchor::Center => place_centered(size, layout.work_area),
     };
 
-    window.set_size(LogicalSize::new(WIDTH, layout.height))?;
+    window.set_size(LogicalSize::new(layout.width, layout.height))?;
     window.set_position(crate::window_position(
         PhysicalPosition::new(placement.x, placement.y),
         scale,

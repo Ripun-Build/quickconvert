@@ -7,6 +7,7 @@
   --surface: rgba(255, 255, 255, 0.6); /* cards, inputs */
   --surface-hover: rgba(0, 0, 0, 0.05);
   --surface-selected: rgba(0, 122, 255, 0.12);
+  --surface-raised: #ffffff; /* segmented thumb, slider knob */
   --separator: rgba(0, 0, 0, 0.08);
   --border-glass: rgba(255, 255, 255, 0.55); /* 1px inner highlight */
 
@@ -36,6 +37,8 @@
   /* Elevation */
   --shadow-popup: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 12px 40px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.08);
 
+  --shadow-control: 0 0.5px 2px rgba(0, 0, 0, 0.25), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+
   /* Spacing scale (4 px base) */
   --space-1: 4px;
   --space-2: 8px;
@@ -62,6 +65,8 @@
     --surface: rgba(255, 255, 255, 0.06);
     --surface-hover: rgba(255, 255, 255, 0.08);
     --surface-selected: rgba(10, 132, 255, 0.24);
+  --surface-raised: rgba(255, 255, 255, 0.14);
+    --surface-raised: rgba(255, 255, 255, 0.14);
     --separator: rgba(255, 255, 255, 0.1);
     --border-glass: rgba(255, 255, 255, 0.1);
     --text-primary: rgba(255, 255, 255, 0.92);
@@ -84,6 +89,7 @@
   --surface: rgba(255, 255, 255, 0.06);
   --surface-hover: rgba(255, 255, 255, 0.08);
   --surface-selected: rgba(10, 132, 255, 0.24);
+  --surface-raised: rgba(255, 255, 255, 0.14);
   --separator: rgba(255, 255, 255, 0.1);
   --border-glass: rgba(255, 255, 255, 0.1);
   --text-primary: rgba(255, 255, 255, 0.92);

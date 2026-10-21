@@ -66,6 +66,7 @@ The selection is only read when Explorer/Finder is the frontmost app at the mome
 | **Running** | Per-batch progress bar + "3 of 12 · photo_03.jpg". Cancel button (Esc also cancels after confirm-free stop). |
 | **Result** | Green check, output name(s), buttons: Show in folder · Open · Copy path. Auto-hide after 2.5 s unless hovered/focused. |
 | **ErrorView** | Plain-language message, per-file failure list for batches ("10 done, 2 failed — Show details"), Retry / Back. |
+| **ResizeEditor** | Popup widens to 720 px. Image preview inside a dashed outline of the original size; drag the corner or right/bottom edge to resize, live W × H label follows the corner. Width/Height fields stay in sync both ways; aspect lock (on); 25/50/75/100 % shortcuts. Never larger than the original. |
 | **CropEditor** | Phase 2. Image preview, draggable crop box, aspect presets (Free, 1:1, 4:3, 3:4, 16:9, 35×45 mm passport), rotate 90°. |
 | **PageTray** | Phase 2. Thumbnails of images/pages; drag to reorder, rotate, remove; then "Create PDF". |
 
@@ -87,10 +88,10 @@ Input types: `image` = JPG/JPEG, PNG, WebP, BMP, GIF (first frame), TIFF; `pdf` 
 ### v1 (MVP)
 | id | Label | Input | Output | Options (defaults **bold**) |
 |---|---|---|---|---|
-| `images_to_pdf` | Combine into PDF | 1+ images | 1 PDF | Page size: **Fit to image** / A4 / Letter · Margin: **None** / Small (10 mm) · Order: **selection order** (by filename if unknown) |
+| `images_to_pdf` | Combine into PDF | 1+ images | 1 PDF | Page size: **Fit to image** (image DPI, else 150 DPI) / A4 / Letter (landscape for wide images) · Margin: **None** / Small (10 mm) · Order: **selection order** (by filename if unknown). JPEGs embedded without re-encoding; EXIF rotation applied. |
 | `pdf_to_images` | PDF to JPG/PNG | 1 PDF | 1 image per page | Format: **JPG** / PNG · Resolution: 72 / **150** / 300 DPI · Pages: **All** / range "1-3,5" |
-| `image_convert` | Convert to… | 1+ images | same count | Format: **JPG** / PNG / WebP · Quality 1–100 (**85**) for JPG/WebP · Transparent background → **white** (JPG only) |
-| `image_resize` | Resize | 1+ images | same count | Mode: **Long edge px** (default 1600) / Exact W×H (lock aspect **on**) / Percent |
+| `image_convert` | Convert to… | 1+ images | same count | Format: **JPG** / PNG / WebP (lossy, libwebp) · Quality 1–100 (**85**) for JPG/WebP · Transparent background → **white** (JPG only) |
+| `image_resize` | Resize | 1+ images | same count | **ResizeEditor** (visual). Starts at long edge **1600 px** (or the original if smaller); never upscales. Several images: aspect locked → same percentage for each (each keeps its shape); unlocked → every image becomes exactly W × H. |
 | `image_compress` | Compress | 1+ images | same count | Mode: **Target size (KB)** / Quality slider · Target default **200 KB** |
 | `pdf_merge` | Merge PDFs | 2+ PDFs | 1 PDF | Order: **selection order** |
 | `apply_preset` | Apply preset… | 1+ images | same count | Pick from presets (§8) |
@@ -149,6 +150,7 @@ Shipped presets are clearly labelled **examples**; users can add, edit, duplicat
   - `pdf_to_images`: folder `<pdf name> pages/` containing `<pdf name>-01.jpg`, `-02`, … (zero-padded to page count width).
   - `pdf_merge`: `<first file name> merged.pdf`.
 - Originals are never touched. Writes go to a temp file in the target folder and are renamed on success (no half-written outputs).
+- Colour profiles are kept: every image output (and the PDF image colour space) embeds the input's ICC profile, so wide-gamut phone photos (Display P3) don't look washed out.
 - If the target folder isn't writable, fall back to the user's Downloads folder and say so in the Result view.
 
 ## 10. Settings window

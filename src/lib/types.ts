@@ -40,6 +40,13 @@ export interface FileInfo {
   size: number;
 }
 
+/** `files::Preview`: editor preview data URL and the image's upright size in px. */
+export interface Preview {
+  url: string;
+  width: number;
+  height: number;
+}
+
 /** `files::FileSet`: supported files in selection order, plus how many inputs were skipped. */
 export interface FileSet {
   files: FileInfo[];
@@ -53,10 +60,41 @@ export interface PopupFilesPayload {
   set: FileSet;
 }
 
+/** `convert::image::ResizeMode` */
+export type ResizeMode =
+  | { kind: "long_edge"; px: number }
+  | { kind: "exact"; width: number; height: number; keepAspect: boolean }
+  | { kind: "percent"; percent: number };
+
+/** `jobs::JobRequest`: what to run, with its options. */
+export type JobRequest =
+  | { action: "images_to_pdf"; pageSize: "fit" | "a4" | "letter"; margin: "none" | "small" }
+  | { action: "pdf_merge" }
+  | { action: "image_convert"; format: "jpg" | "png" | "webp"; quality: number }
+  | { action: "image_resize"; mode: ResizeMode };
+
 /** Payload of the `job://progress` event. */
 export interface JobProgress {
   jobId: string;
+  /** Index of the file being processed; equals `fileCount` when finished. */
   fileIndex: number;
   fileCount: number;
   percent: number;
+  fileName: string;
+}
+
+/** `jobs::Failure` */
+export interface JobFailure {
+  name: string;
+  error: AppError;
+}
+
+/** Payload of the `job://done` event (`jobs::JobDone`). */
+export interface JobDone {
+  jobId: string;
+  outputs: string[];
+  failures: JobFailure[];
+  /** Some output went to Downloads because the folder wasn't writable. */
+  savedToFallback: boolean;
+  cancelled: boolean;
 }

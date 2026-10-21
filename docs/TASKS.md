@@ -33,14 +33,15 @@ Work top to bottom. One milestone per commit (`M<n>: summary`). Each milestone m
 - [x] ActionList view: search filter, groups, ↑/↓/Enter/1–9 keyboard, shared highlight
 
 ## M3 — Job runner + first conversions
-- [ ] `jobs.rs`: spawn_blocking, `job://progress` events, cancel flag, per-file results
-- [ ] `output.rs`: naming rules (SPECS §9), collision-safe names, temp-then-rename, Downloads fallback; tests
-- [ ] `images_to_pdf` (embed JPEGs without re-encoding; others → JPEG/PNG stream), page size + margin options
-- [ ] `pdf_merge` (lopdf)
-- [ ] `image_convert` (JPG/PNG/WebP, quality, transparency → white for JPG)
-- [ ] `image_resize` (long edge / exact / percent, Lanczos3)
-- [ ] OptionsSheet, Running, Result and ErrorView views
-- [ ] Test: originals byte-identical after every action
+- [x] `jobs.rs`: spawn_blocking, `job://progress` events, cancel flag, per-file results
+- [x] `output.rs`: naming rules (SPECS §9), collision-safe names, temp-then-rename, Downloads fallback; tests
+- [x] `images_to_pdf` (embed JPEGs without re-encoding; others → JPEG/PNG stream), page size + margin options
+- [x] `pdf_merge` (lopdf)
+- [x] `image_convert` (JPG/PNG/WebP, quality, transparency → white for JPG)
+- [x] `image_resize` (long edge / exact / percent, Lanczos3) + visual ResizeEditor (drag handles, live W × H)
+- [x] OptionsSheet, Running, Result and ErrorView views
+- [x] Test: originals byte-identical after every action
+- [x] Colour profiles (ICC) kept in JPG/PNG/WebP outputs and PDF images
 
 ## M4 — PDF to images
 - [ ] Bundle pdfium dynamic library as a resource; load at runtime with clear error if missing

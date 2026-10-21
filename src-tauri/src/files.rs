@@ -6,7 +6,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::SystemTime;
 
-use image::{DynamicImage, ImageDecoder, ImageFormat, ImageReader};
 use serde::Serialize;
 
 use crate::errors::AppError;
@@ -96,6 +95,36 @@ impl ThumbnailCache {
     }
 }
 
+/// Longest side of the editor preview in px.
+const PREVIEW_SIZE: u32 = 1024;
+
+/// Editor preview: a JPEG data URL (colour profile kept) and the image's upright size in px.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Preview {
+    pub url: String,
+    pub width: u32,
+    pub height: u32,
+}
+
+pub fn preview(path: &Path) -> Result<Preview, AppError> {
+    let picture = crate::convert::image::load(path)?;
+    let (width, height) = (picture.image.width(), picture.image.height());
+    let mut jpg = Vec::new();
+    crate::convert::image::encode(
+        &picture.image.thumbnail(PREVIEW_SIZE, PREVIEW_SIZE),
+        picture.icc.as_deref(),
+        crate::convert::image::OutputFormat::Jpg,
+        85,
+        &mut Cursor::new(&mut jpg),
+    )?;
+    Ok(Preview {
+        url: format!("data:image/jpeg;base64,{}", base64(&jpg)),
+        width,
+        height,
+    })
+}
+
 /// Small PNG data URL for an image file, rotated per its EXIF orientation.
 pub fn thumbnail_data_url(path: &Path) -> Result<String, AppError> {
     if kind_of(path) != Some(FileKind::Image) {
@@ -103,21 +132,17 @@ pub fn thumbnail_data_url(path: &Path) -> Result<String, AppError> {
             extension: extension_of(path),
         });
     }
-    let corrupt = |e: image::ImageError| AppError::Corrupt {
-        detail: e.to_string(),
-    };
-    let mut decoder = ImageReader::open(path)?
-        .with_guessed_format()?
-        .into_decoder()
-        .map_err(corrupt)?;
-    let orientation = decoder.orientation().map_err(corrupt)?;
-    let mut img = DynamicImage::from_decoder(decoder).map_err(corrupt)?;
-    img.apply_orientation(orientation);
+    let picture = crate::convert::image::load(path)?;
 
+    // Keep the colour profile so thumbnails show the same colours as the file.
     let mut png = Vec::new();
-    img.thumbnail(THUMB_SIZE, THUMB_SIZE)
-        .write_to(&mut Cursor::new(&mut png), ImageFormat::Png)
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    crate::convert::image::encode(
+        &picture.image.thumbnail(THUMB_SIZE, THUMB_SIZE),
+        picture.icc.as_deref(),
+        crate::convert::image::OutputFormat::Png,
+        100,
+        &mut Cursor::new(&mut png),
+    )?;
     Ok(format!("data:image/png;base64,{}", base64(&png)))
 }
 
@@ -230,6 +255,20 @@ mod tests {
             thumbnail_data_url(&path),
             Err(AppError::Corrupt { .. })
         ));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn preview_reports_full_size_and_is_small() {
+        let dir = temp_dir("preview");
+        let path = dir.join("big.png");
+        image::RgbImage::from_pixel(3000, 1500, image::Rgb([9, 9, 9]))
+            .save(&path)
+            .unwrap();
+        let p = preview(&path).unwrap();
+        assert_eq!((p.width, p.height), (3000, 1500));
+        assert!(p.url.starts_with("data:image/jpeg;base64,/9j/"));
+        assert!(p.url.len() < 200_000);
         std::fs::remove_dir_all(dir).unwrap();
     }
 }

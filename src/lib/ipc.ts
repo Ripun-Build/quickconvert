@@ -3,7 +3,16 @@ import { invoke, type InvokeArgs } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { AppError, FileSet, PopupFilesPayload, PopupShowPayload } from "./types";
+import type {
+  AppError,
+  FileSet,
+  JobDone,
+  JobProgress,
+  JobRequest,
+  PopupFilesPayload,
+  PopupShowPayload,
+  Preview,
+} from "./types";
 
 export function isAppError(value: unknown): value is AppError {
   return (
@@ -35,8 +44,8 @@ export const popupShown = () => call<void>("popup_shown");
 /** Whether native blur is active; false → use the solid background. */
 export const blurEnabled = () => call<boolean>("blur_enabled");
 
-/** Fit the window to the content height (logical px). */
-export const resizePopup = (height: number) => call<void>("resize_popup", { height });
+/** Fit the window to the content (logical px). Editors pass a wider width. */
+export const resizePopup = (width: number, height: number) => call<void>("resize_popup", { width, height });
 
 /** While pinned (drop zone), clicking elsewhere doesn't hide the popup. */
 export const setPopupPinned = (pinned: boolean) => call<void>("set_popup_pinned", { pinned });
@@ -55,6 +64,9 @@ export const describeFiles = (paths: string[]) => call<FileSet>("describe_files"
 
 /** Small PNG data URL for an image file. */
 export const thumbnail = (path: string) => call<string>("thumbnail", { path });
+
+/** Larger preview for editors, plus the image's upright size in px. */
+export const preview = (path: string) => call<Preview>("preview", { path });
 
 const DIALOG_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "bmp", "gif", "tif", "tiff", "pdf"];
 
@@ -78,3 +90,22 @@ export const onFileDrop = (handler: (event: DropEvent) => void): Promise<Unliste
     else if (payload.type === "leave") handler({ type: "leave" });
     else handler({ type: "over" });
   });
+
+// ---- Jobs ----
+
+/** Start a conversion; resolves to the job id. Progress and the result arrive as events. */
+export const startJob = (request: JobRequest, paths: string[]) => call<string>("start_job", { request, paths });
+
+export const cancelJob = (jobId: string) => call<void>("cancel_job", { jobId });
+
+export const onJobProgress = (handler: (progress: JobProgress) => void): Promise<UnlistenFn> =>
+  listen<JobProgress>("job://progress", (event) => handler(event.payload));
+
+export const onJobDone = (handler: (done: JobDone) => void): Promise<UnlistenFn> =>
+  listen<JobDone>("job://done", (event) => handler(event.payload));
+
+/** Open a file written by a job in its default app. */
+export const openOutput = (path: string) => call<void>("open_output", { path });
+
+/** Show a file written by a job in Finder/Explorer. */
+export const revealOutput = (path: string) => call<void>("reveal_output", { path });

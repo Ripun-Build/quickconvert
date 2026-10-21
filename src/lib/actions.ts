@@ -1,4 +1,6 @@
-// Action registry and suggestion logic (SPECS §6). Pure module (no UI imports) so it runs under `node --test`.
+// Action registry, suggestion logic and option schemas (SPECS §6). Pure module (no UI imports) so it runs
+// under `node --test`.
+import type { JobRequest, ResizeMode } from "./types";
 
 export type InputKind = "image" | "pdf";
 
@@ -201,3 +203,123 @@ function isSubsequence(needle: string, haystack: string): boolean {
 export function flatActions(menu: Menu): ActionDef[] {
   return menu.sections.flatMap((s) => s.actions);
 }
+
+// ---- Options (SPECS §6 defaults) ----
+
+export type OptionValues = Record<string, string | number | boolean>;
+
+interface FieldBase {
+  key: string;
+  label: string;
+  /** Hide the field unless this returns true for the current values. */
+  visible?: (values: OptionValues) => boolean;
+}
+
+export type OptionField =
+  | (FieldBase & { kind: "segmented"; choices: { value: string; label: string }[] })
+  | (FieldBase & { kind: "slider"; min: number; max: number; step: number; unit?: string })
+  | (FieldBase & { kind: "number"; min: number; max: number; unit: string })
+  | (FieldBase & { kind: "toggle" });
+
+export interface ActionSpec {
+  fields: OptionField[];
+  defaults: OptionValues;
+  /** Primary button label. */
+  submit: string;
+  toRequest: (values: OptionValues) => JobRequest;
+}
+
+const str = (v: OptionValues[string]) => String(v);
+const num = (v: OptionValues[string]) => Number(v);
+
+/** Actions that can run. The rest (compress, presets, PDF → images) arrive in M4–M5. */
+export const ACTION_SPECS: Partial<Record<ActionId, ActionSpec>> = {
+  images_to_pdf: {
+    submit: "Create PDF",
+    defaults: { pageSize: "fit", margin: "none" },
+    fields: [
+      {
+        kind: "segmented",
+        key: "pageSize",
+        label: "Page size",
+        choices: [
+          { value: "fit", label: "Fit to image" },
+          { value: "a4", label: "A4" },
+          { value: "letter", label: "Letter" },
+        ],
+      },
+      {
+        kind: "segmented",
+        key: "margin",
+        label: "Margin",
+        choices: [
+          { value: "none", label: "None" },
+          { value: "small", label: "Small" },
+        ],
+      },
+    ],
+    toRequest: (v) => ({
+      action: "images_to_pdf",
+      pageSize: str(v.pageSize) as "fit" | "a4" | "letter",
+      margin: str(v.margin) as "none" | "small",
+    }),
+  },
+  pdf_merge: {
+    submit: "Merge",
+    defaults: {},
+    fields: [],
+    toRequest: () => ({ action: "pdf_merge" }),
+  },
+  image_convert: {
+    submit: "Convert",
+    defaults: { format: "jpg", quality: 85 },
+    fields: [
+      {
+        kind: "segmented",
+        key: "format",
+        label: "Format",
+        choices: [
+          { value: "jpg", label: "JPG" },
+          { value: "png", label: "PNG" },
+          { value: "webp", label: "WebP" },
+        ],
+      },
+      { kind: "slider", key: "quality", label: "Quality", min: 1, max: 100, step: 1, visible: (v) => v.format !== "png" },
+    ],
+    toRequest: (v) => ({
+      action: "image_convert",
+      format: str(v.format) as "jpg" | "png" | "webp",
+      quality: num(v.quality),
+    }),
+  },
+  image_resize: {
+    submit: "Resize",
+    defaults: { mode: "long_edge", px: 1600, width: 1600, height: 1600, keepAspect: true, percent: 50 },
+    fields: [
+      {
+        kind: "segmented",
+        key: "mode",
+        label: "Resize by",
+        choices: [
+          { value: "long_edge", label: "Long edge" },
+          { value: "exact", label: "Exact size" },
+          { value: "percent", label: "Percent" },
+        ],
+      },
+      { kind: "number", key: "px", label: "Long edge", min: 1, max: 20000, unit: "px", visible: (v) => v.mode === "long_edge" },
+      { kind: "number", key: "width", label: "Width", min: 1, max: 20000, unit: "px", visible: (v) => v.mode === "exact" },
+      { kind: "number", key: "height", label: "Height", min: 1, max: 20000, unit: "px", visible: (v) => v.mode === "exact" },
+      { kind: "toggle", key: "keepAspect", label: "Keep aspect ratio", visible: (v) => v.mode === "exact" },
+      { kind: "slider", key: "percent", label: "Scale", min: 1, max: 200, step: 1, unit: "%", visible: (v) => v.mode === "percent" },
+    ],
+    toRequest: (v) => {
+      const mode: ResizeMode =
+        v.mode === "exact"
+          ? { kind: "exact", width: num(v.width), height: num(v.height), keepAspect: Boolean(v.keepAspect) }
+          : v.mode === "percent"
+            ? { kind: "percent", percent: num(v.percent) }
+            : { kind: "long_edge", px: num(v.px) };
+      return { action: "image_resize", mode };
+    },
+  },
+};
