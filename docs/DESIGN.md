@@ -57,6 +57,11 @@ All colours, radii, spacing and type sizes come from these CSS variables. Tailwi
 
   --shadow-control: 0 0.5px 2px rgba(0,0,0,0.25), 0 0 0 0.5px rgba(0,0,0,0.06); /* knobs, thumbs */
 
+  /* Crop editor: drawn over the photo, so the same in light and dark */
+  --scrim: rgba(0, 0, 0, 0.5);              /* dims the part being cropped away */
+  --crop-line: rgba(255, 255, 255, 0.92);   /* crop outline, grid, handles */
+  --shadow-scrim: 0 0 0 9999px var(--scrim); /* on the crop box, clipped to the photo */
+
   /* Spacing scale (4 px base) */
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px;
 
@@ -156,6 +161,9 @@ Settings → Appearance sets `data-theme="light" | "dark"` on `<html>`, or remov
 | **Switch** | 34 × 20 pill: `--accent` when on, `--text-tertiary` when off; 16 px `--text-on-accent` knob with `--shadow-control`, slides 14 px in 150 ms. |
 | **Shortcut recorder** | 30 px pill showing the shortcut in Mac symbols on `--surface-raised`; while recording it shows the keys held so far ("⌃⇧…") with an `--accent` inset ring. |
 | **ResizeEditor** | 720 px wide. Canvas on `--surface`, original size as a dashed `--separator` outline with the image at 15 % behind; live image on top. Handles: `--surface-raised` pills on the right/bottom edges, round corner handle with `--accent` border (keyboard: arrows 1 %, Shift 10 %). W × H label in a `--bg-glass` chip at the corner. Lock = Link/Unlink icon. |
+
+| **CropEditor** | 720 px wide. Photo on a `--surface` canvas, dimmed outside the crop box by `--shadow-scrim` (clipped to the photo). Box: 1 px `--crop-line` border; corner handles 16 px `--crop-line` dots, side handles 8 × 28 px pills, all with `--shadow-control`; the bottom-right one has a 2 px `--accent` border and takes the keyboard. Thirds grid (`--crop-line`, 60 %) only while dragging. W × H label in a `--bg-glass` chip. Shape chips like the Resize % chips (selected = `--surface-selected` + `--text-accent`). Rotate turns the photo with a spring (300 / 30); reduced motion fades instead. |
+| **RotateView** | 360 px. Caption "Make every image" over a Segmented (Straight / Left / Right / Upside down). Pictures: radius 7, `--surface` with a 0.5 px `--separator` ring, image `object-contain`, turning with the same spring (always the short way round); one image = 176 px square on a `--surface` card, several = 4-column grid, 8 px gaps, max 208 px tall with the scroll fade. Badge top-right: 18 px `--bg-glass` circle with a 12 px icon — RotateCw `--text-accent` (will turn), Check `--text-tertiary` (already right; picture at 60 %), CircleHelp `--text-warning` (couldn't tell). Skeleton while checking. Summary line in caption tertiary. |
 
 Icons (lucide-react): FileText (PDF), Images, Image, Minimize2 (compress), Scaling (resize), Crop, RotateCw, Combine/Layers (merge), Scissors (split), SlidersHorizontal (options), Settings, Check, AlertTriangle, FolderOpen, Copy.
 

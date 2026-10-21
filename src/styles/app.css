@@ -31,6 +31,7 @@
   --color-warning: var(--warning);
   --color-danger: var(--danger);
   --color-focus-ring: var(--focus-ring);
+  --color-crop-line: var(--crop-line);
   --color-transparent: transparent;
 
   --radius-*: initial;
@@ -45,6 +46,7 @@
   --shadow-*: initial;
   --shadow-popup: var(--shadow-popup);
   --shadow-control: var(--shadow-control);
+  --shadow-scrim: var(--shadow-scrim);
 
   --text-*: initial;
   --spacing: var(--space-1);

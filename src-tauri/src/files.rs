@@ -110,19 +110,27 @@ pub struct Preview {
 pub fn preview(path: &Path) -> Result<Preview, AppError> {
     let picture = crate::convert::image::load(path)?;
     let (width, height) = (picture.image.width(), picture.image.height());
+    Ok(Preview {
+        url: jpeg_data_url(
+            &picture.image.thumbnail(PREVIEW_SIZE, PREVIEW_SIZE),
+            picture.icc.as_deref(),
+        )?,
+        width,
+        height,
+    })
+}
+
+/// `image` as a JPEG data URL (quality 85), colour profile kept.
+pub fn jpeg_data_url(image: &image::DynamicImage, icc: Option<&[u8]>) -> Result<String, AppError> {
     let mut jpg = Vec::new();
     crate::convert::image::encode(
-        &picture.image.thumbnail(PREVIEW_SIZE, PREVIEW_SIZE),
-        picture.icc.as_deref(),
+        image,
+        icc,
         crate::convert::image::OutputFormat::Jpg,
         85,
         &mut Cursor::new(&mut jpg),
     )?;
-    Ok(Preview {
-        url: format!("data:image/jpeg;base64,{}", base64(&jpg)),
-        width,
-        height,
-    })
+    Ok(format!("data:image/jpeg;base64,{}", base64(&jpg)))
 }
 
 /// Small PNG data URL for an image file, rotated per its EXIF orientation.

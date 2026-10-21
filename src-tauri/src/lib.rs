@@ -2,6 +2,7 @@ pub mod commands;
 pub mod convert;
 pub mod errors;
 pub mod files;
+pub mod instance;
 pub mod jobs;
 pub mod output;
 pub mod popup;
@@ -10,10 +11,12 @@ pub mod selection;
 pub mod settings;
 pub mod settings_window;
 pub mod shortcut;
+pub mod upright;
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{App, AppHandle, Manager, Monitor, PhysicalPosition, Position, Theme, WindowEvent};
+use tauri::{App, AppHandle, Manager, Monitor, PhysicalPosition, Position, Theme};
+use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tauri_plugin_global_shortcut::ShortcutState;
 
 use errors::AppError;
@@ -54,11 +57,12 @@ pub fn run() {
             commands::popup_shown,
             commands::blur_enabled,
             commands::resize_popup,
-            commands::set_popup_pinned,
+            commands::drag_popup,
             commands::focus_popup,
             commands::describe_files,
             commands::thumbnail,
             commands::preview,
+            commands::rotate_check,
             commands::pdf_page_sizes,
             commands::pdf_thumbnails,
             commands::list_presets,
@@ -83,16 +87,30 @@ pub fn run() {
 
             let blur = apply_blur(app);
             let config_dir = app.path().app_config_dir()?;
+            // Can't create the lock (unusual): run anyway rather than refuse to start.
+            let lock = instance::acquire(&config_dir)
+                .map_err(|err| eprintln!("[instance] {err:?}"))
+                .ok();
+            let already_running = matches!(lock, Some(None));
             let settings = AppSettings::load(config_dir.join("settings.json"));
             apply_appearance(app.handle(), settings.get().appearance);
 
             app.manage(HotkeyState::default());
-            let hotkey_ok =
-                shortcut::register_initial(app.handle(), settings.get().shortcut.as_deref());
-            app.manage(settings);
             app.manage(PopupState::new(blur));
             app.manage(ThumbnailCache::default());
             app.manage(Jobs::default());
+            if already_running {
+                // This copy only explains itself and quits; the running one keeps the shortcut.
+                app.manage(settings);
+                tell_already_running(app.handle());
+                return Ok(());
+            }
+            if let Some(Some(lock)) = lock {
+                app.manage(lock);
+            }
+            let hotkey_ok =
+                shortcut::register_initial(app.handle(), settings.get().shortcut.as_deref());
+            app.manage(settings);
             build_tray(app)?;
             if !hotkey_ok {
                 // SPECS §4: show why and let the user pick another shortcut right away.
@@ -102,24 +120,23 @@ pub fn run() {
                     Some("shortcut-conflict"),
                 ));
             }
-
-            if let Some(window) = app.get_webview_window(popup::LABEL) {
-                let handle = app.handle().clone();
-                window.on_window_event(move |event| {
-                    if let WindowEvent::Focused(false) = event {
-                        // Drop zone and running jobs keep the popup open (SPECS §5).
-                        let keep = handle.state::<PopupState>().is_pinned()
-                            || handle.state::<Jobs>().is_running();
-                        if !keep {
-                            log_err(popup::hide(&handle));
-                        }
-                    }
-                });
-            }
             Ok(())
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Second copy: say why nothing else happens, then quit when the message is closed.
+fn tell_already_running(app: &AppHandle) {
+    let handle = app.clone();
+    app.dialog()
+        .message(
+            "Another copy of QuickConvert is already open. Use it from its menu bar icon or \
+             its keyboard shortcut, or quit it from the menu bar first and then open this one again.",
+        )
+        .title("QuickConvert is already running")
+        .kind(MessageDialogKind::Info)
+        .show(move |_| handle.exit(0));
 }
 
 fn tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {

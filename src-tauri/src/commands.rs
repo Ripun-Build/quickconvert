@@ -63,10 +63,19 @@ pub async fn preview(path: String) -> Result<files::Preview, AppError> {
         .map_err(|e| AppError::internal(e.to_string()))?
 }
 
-/// While pinned (drop zone), clicking elsewhere doesn't hide the popup.
+/// Rotate view: a thumbnail (longest side `size` px) and the turn that makes the image straight.
 #[tauri::command]
-pub fn set_popup_pinned(state: State<'_, PopupState>, pinned: bool) {
-    state.set_pinned(pinned);
+pub async fn rotate_check(
+    path: String,
+    size: u32,
+) -> Result<crate::upright::RotateCheck, AppError> {
+    blocking(move || crate::upright::check(&PathBuf::from(path), size.clamp(64, 1024))).await
+}
+
+/// Start moving the popup with the mouse (pressed on its header).
+#[tauri::command]
+pub fn drag_popup(app: AppHandle) -> Result<(), AppError> {
+    popup::start_drag(&app)
 }
 
 /// Bring the popup back to the front, e.g. after files were dropped from Finder.

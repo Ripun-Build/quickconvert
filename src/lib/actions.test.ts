@@ -31,12 +31,14 @@ test("every action is listed; the ones that don't fit are disabled with a reason
   assert.equal(all.images_to_pdf, "");
   assert.equal(all.pdf_to_images, "Needs one PDF");
   assert.equal(all.pdf_merge, "Needs 2+ PDFs");
+  assert.equal(all.image_crop, "Works on one image at a time");
   // Runnable actions (and their 1–9 numbers) skip the disabled ones.
   assert.deepEqual(ids(["image", "image"]), [
     "images_to_pdf",
     "image_compress",
     "image_resize",
     "image_convert",
+    "image_rotate",
     "apply_preset",
   ]);
 });
@@ -91,7 +93,10 @@ test("mixed images and PDFs are incompatible with per-type groups", () => {
   );
   assert.deepEqual(
     menu.sections[2].items.map((i) => [i.action.id, i.reason]),
-    [["pdf_merge", "Needs 2+ PDFs"]],
+    [
+      ["pdf_merge", "Needs 2+ PDFs"],
+      ["image_crop", "Works on one image at a time"],
+    ],
   );
 });
 
@@ -104,7 +109,8 @@ test("search matches label words, keyword prefixes, and small typos", () => {
   const search = (q: string) => flatActions(filterMenu(menu, q)).map((a) => a.id);
   assert.deepEqual(search("comp"), ["image_compress"]);
   assert.deepEqual(search("Comp"), ["image_compress"]);
-  assert.deepEqual(search("passport"), ["apply_preset"]);
+  assert.deepEqual(search("passport"), ["image_crop", "apply_preset"]);
+  assert.deepEqual(search("sideways"), ["image_rotate"]);
   assert.deepEqual(search("into pdf"), ["images_to_pdf"]);
   assert.deepEqual(search("cmprs"), ["image_compress"]);
   assert.deepEqual(search("webp"), ["image_convert"]);

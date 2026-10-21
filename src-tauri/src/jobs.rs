@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::convert::compress::{self, CompressTarget, Preset};
+use crate::convert::crop::{self, CropRect, Turn};
 use crate::convert::image::{self as img, OutputFormat, ResizeMode};
 use crate::convert::pdf::{self, Margin, PageSize};
 use crate::convert::pdf_render::{self, PageSelection};
@@ -49,6 +50,16 @@ pub enum JobRequest {
     },
     ApplyPreset {
         preset: Preset,
+    },
+    /// Turn first (CropEditor's rotate buttons), then keep `rect`.
+    ImageCrop {
+        rect: CropRect,
+        #[serde(default)]
+        turn: Turn,
+    },
+    /// Each image's own turn, keyed by its path (a batch can mix sideways and upside-down images).
+    ImageRotate {
+        turns: HashMap<String, Turn>,
     },
 }
 
@@ -340,7 +351,9 @@ pub fn run(
         JobRequest::ImageConvert { .. }
         | JobRequest::ImageResize { .. }
         | JobRequest::ImageCompress { .. }
-        | JobRequest::ApplyPreset { .. } => {
+        | JobRequest::ApplyPreset { .. }
+        | JobRequest::ImageCrop { .. }
+        | JobRequest::ImageRotate { .. } => {
             for (i, path) in paths.iter().enumerate() {
                 if is_cancelled() {
                     done.cancelled = true;
@@ -378,13 +391,22 @@ fn convert_one(
         }
         JobRequest::ImageResize { mode } => {
             let resized = img::resize(&picture.image, *mode);
-            let name = output::suffixed_name(path, "resized", &img::same_format_extension(path));
-            let written = output::write_output(out_dir, fallback, &name, |w| {
-                img::encode_like(&resized, icc, path, w)
-            })?;
-            let keeps_quality = matches!(img::same_format_extension(path).as_str(), "jpg" | "webp");
-            let detail = detail_of(&resized, keeps_quality.then_some(img::KEEP_FORMAT_QUALITY));
-            Ok((written, Some(detail)))
+            write_same_format(path, out_dir, fallback, "resized", &resized, icc)
+        }
+        JobRequest::ImageCrop { rect, turn } => {
+            let cropped = crop::crop(&crop::rotate(picture.image, *turn), *rect)?;
+            write_same_format(path, out_dir, fallback, "cropped", &cropped, icc)
+        }
+        JobRequest::ImageRotate { turns } => {
+            let turn = turns
+                .get(path.to_string_lossy().as_ref())
+                .copied()
+                .unwrap_or_default();
+            if turn == Turn::None {
+                return Err(AppError::invalid("This image doesn't need turning."));
+            }
+            let rotated = crop::rotate(picture.image, turn);
+            write_same_format(path, out_dir, fallback, "rotated", &rotated, icc)
         }
         JobRequest::ImageCompress { target } => {
             let plan = compress::plan_for_target(path, *target);
@@ -400,6 +422,26 @@ fn convert_one(
         }
         _ => Err(AppError::internal("not a per-file action")),
     }
+}
+
+/// Save `image` as `<name>-<suffix>` in the input's own format, at the quality used whenever the
+/// format is kept.
+fn write_same_format(
+    path: &Path,
+    out_dir: &Path,
+    fallback: Option<&Path>,
+    suffix: &str,
+    image: &image::DynamicImage,
+    icc: Option<&[u8]>,
+) -> Result<(Written, Option<Detail>), AppError> {
+    let extension = img::same_format_extension(path);
+    let name = output::suffixed_name(path, suffix, &extension);
+    let written = output::write_output(out_dir, fallback, &name, |w| {
+        img::encode_like(image, icc, path, w)
+    })?;
+    let keeps_quality = matches!(extension.as_str(), "jpg" | "webp");
+    let detail = detail_of(image, keeps_quality.then_some(img::KEEP_FORMAT_QUALITY));
+    Ok((written, Some(detail)))
 }
 
 fn detail_of(image: &image::DynamicImage, quality: Option<u8>) -> Detail {
@@ -606,6 +648,42 @@ mod tests {
         assert_eq!(names(&preset_done), ["photo-tiny-thumb.jpg"]);
         assert_eq!(preset_done.outputs[0].width, Some(32));
 
+        // 64 × 48 photo: turn right (48 × 64), then keep a 20 × 30 box.
+        let cropped = run_quiet(
+            JobRequest::ImageCrop {
+                rect: CropRect {
+                    x: 10,
+                    y: 20,
+                    width: 20,
+                    height: 30,
+                },
+                turn: Turn::Right,
+            },
+            &inputs[..1],
+        );
+        assert_eq!(names(&cropped), ["photo-cropped.jpg"]);
+        assert_eq!(
+            (cropped.outputs[0].width, cropped.outputs[0].height),
+            (Some(20), Some(30))
+        );
+
+        // Each image its own turn.
+        let key = |p: &PathBuf| p.to_string_lossy().into_owned();
+        let turns = HashMap::from([
+            (key(&inputs[0]), Turn::Half),
+            (key(&inputs[1]), Turn::Right),
+            (key(&inputs[2]), Turn::Left),
+        ]);
+        let rotated = run_quiet(JobRequest::ImageRotate { turns }, &inputs);
+        assert_eq!(
+            names(&rotated),
+            ["photo-rotated.jpg", "logo-rotated.png", "pic-rotated.webp"]
+        );
+        let half = image::open(dir.join("photo-rotated.jpg")).unwrap();
+        assert_eq!((half.width(), half.height()), (64, 48));
+        let turned = image::open(dir.join("pic-rotated.webp")).unwrap();
+        assert_eq!((turned.width(), turned.height()), (30, 20));
+
         for done in [
             &convert,
             &resize,
@@ -614,6 +692,8 @@ mod tests {
             &pages,
             &compressed,
             &preset_done,
+            &cropped,
+            &rotated,
         ] {
             assert!(done.failures.is_empty(), "{:?}", done.failures);
             assert!(!done.cancelled);
@@ -713,6 +793,35 @@ mod tests {
             r,
             JobRequest::ImageResize {
                 mode: ResizeMode::LongEdge { px: 1600 }
+            }
+        );
+        let r: JobRequest = serde_json::from_str(
+            r#"{"action":"image_crop","rect":{"x":1,"y":2,"width":3,"height":4},"turn":90}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            r,
+            JobRequest::ImageCrop {
+                rect: CropRect {
+                    x: 1,
+                    y: 2,
+                    width: 3,
+                    height: 4
+                },
+                turn: Turn::Right
+            }
+        );
+        let r: JobRequest = serde_json::from_str(
+            r#"{"action":"image_rotate","turns":{"/a/b.jpg":180,"/a/c.png":90}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            r,
+            JobRequest::ImageRotate {
+                turns: HashMap::from([
+                    ("/a/b.jpg".to_string(), Turn::Half),
+                    ("/a/c.png".to_string(), Turn::Right)
+                ])
             }
         );
         let r: JobRequest = serde_json::from_str(r#"{"action":"pdf_merge"}"#).unwrap();

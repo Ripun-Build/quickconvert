@@ -16,6 +16,7 @@ import type {
   PopupShowPayload,
   Preset,
   Preview,
+  RotateCheck,
   Settings,
   SettingsView,
 } from "./types";
@@ -53,8 +54,8 @@ export const blurEnabled = () => call<boolean>("blur_enabled");
 /** Fit the window to the content (logical px). Editors pass a wider width. */
 export const resizePopup = (width: number, height: number) => call<void>("resize_popup", { width, height });
 
-/** While pinned (drop zone), clicking elsewhere doesn't hide the popup. */
-export const setPopupPinned = (pinned: boolean) => call<void>("set_popup_pinned", { pinned });
+/** Start moving the popup with the mouse (called on mouse-down on its header). */
+export const dragPopup = () => call<void>("drag_popup");
 
 export const focusPopup = () => call<void>("focus_popup");
 
@@ -70,6 +71,9 @@ export const describeFiles = (paths: string[]) => call<FileSet>("describe_files"
 
 /** Small PNG data URL for an image file. */
 export const thumbnail = (path: string) => call<string>("thumbnail", { path });
+
+/** Rotate view: thumbnail (longest side `size` px) and which way is up, if it can tell. */
+export const rotateCheck = (path: string, size: number) => call<RotateCheck>("rotate_check", { path, size });
 
 /** Larger preview for editors, plus the image's upright size in px. */
 export const preview = (path: string) => call<Preview>("preview", { path });

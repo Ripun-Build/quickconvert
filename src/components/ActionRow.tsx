@@ -1,6 +1,17 @@
 // One action in the list (DESIGN §4): icon, label, shortcut. The highlight pill is shared (layoutId).
 import { motion } from "framer-motion";
-import { FileText, Image, Images, Layers, Minimize2, Scaling, SlidersHorizontal, type LucideIcon } from "lucide-react";
+import {
+  Crop,
+  FileText,
+  Image,
+  Images,
+  Layers,
+  Minimize2,
+  RotateCw,
+  Scaling,
+  SlidersHorizontal,
+  type LucideIcon,
+} from "lucide-react";
 import type { ActionDef, ActionId } from "../lib/actions";
 import { Kbd } from "./Kbd";
 
@@ -9,6 +20,8 @@ const ICONS: Record<ActionId, LucideIcon> = {
   pdf_to_images: Images,
   image_convert: Image,
   image_resize: Scaling,
+  image_crop: Crop,
+  image_rotate: RotateCw,
   image_compress: Minimize2,
   pdf_merge: Layers,
   apply_preset: SlidersHorizontal,

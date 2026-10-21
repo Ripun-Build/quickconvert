@@ -56,7 +56,7 @@ export function ActionList({ set, onRun }: Props) {
       e.preventDefault();
       run(highlight);
     } else if (e.key === "Escape" && query) {
-      e.stopPropagation(); // first Esc clears the search; the next one closes the popup
+      e.stopPropagation(); // Esc clears the search (it never closes the popup)
       setQuery("");
     } else if (!query && /^[1-9]$/.test(e.key)) {
       e.preventDefault();

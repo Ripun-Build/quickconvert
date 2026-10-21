@@ -39,6 +39,33 @@ pub enum Origin {
     Center,
 }
 
+/// A rectangle in logical px (points on macOS), for a popup the user has dragged.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Area {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+/// Move a dragged popup's top-left just enough that a window of `size` fits inside `area` (with
+/// the edge margin). Too big to fit: pinned to the top-left margin.
+pub fn keep_inside(top_left: (f64, f64), size: (f64, f64), area: Area) -> (f64, f64) {
+    let fit = |v: f64, len: f64, start: f64, extent: f64| {
+        let lo = start + EDGE_MARGIN;
+        let hi = start + extent - EDGE_MARGIN - len;
+        if hi < lo {
+            lo
+        } else {
+            v.clamp(lo, hi)
+        }
+    };
+    (
+        fit(top_left.0, size.0, area.x, area.width),
+        fit(top_left.1, size.1, area.y, area.height),
+    )
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Placement {
     pub x: i32,
@@ -208,5 +235,36 @@ mod tests {
     fn stays_below_when_max_height_fits() {
         let p = place_at_cursor((500.0, 300.0), POPUP, 480, SCREEN, 1.0);
         assert_eq!((p.y, p.origin), (312, Origin::TopLeft));
+    }
+
+    #[test]
+    fn dragged_popup_stays_put_unless_it_would_leave_the_screen() {
+        let area = Area {
+            x: 0.0,
+            y: 25.0,
+            width: 1440.0,
+            height: 875.0,
+        };
+        // Fits: unchanged.
+        assert_eq!(
+            keep_inside((300.0, 200.0), (360.0, 300.0), area),
+            (300.0, 200.0)
+        );
+        // Widening to the editor near the right edge: slides left just enough.
+        assert_eq!(
+            keep_inside((1000.0, 200.0), (720.0, 540.0), area),
+            (712.0, 200.0)
+        );
+        // Dragged above the menu bar and growing past the bottom: back inside both ways.
+        assert_eq!(keep_inside((20.0, 0.0), (360.0, 480.0), area), (20.0, 33.0));
+        assert_eq!(
+            keep_inside((20.0, 600.0), (360.0, 480.0), area),
+            (20.0, 412.0)
+        );
+        // Bigger than the screen: pinned to the top-left margin.
+        assert_eq!(
+            keep_inside((500.0, 500.0), (2000.0, 2000.0), area),
+            (8.0, 33.0)
+        );
     }
 }

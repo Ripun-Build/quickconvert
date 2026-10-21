@@ -1,7 +1,7 @@
 // Popup root: listens for show/files/job events, runs appear/hide motion, and switches between views.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence, MotionConfig, motion, useReducedMotion, type Transition } from "framer-motion";
-import { Settings as SettingsIcon } from "lucide-react";
+import { Settings as SettingsIcon, X } from "lucide-react";
 import { FileChip } from "./components/FileChip";
 import { ACTION_SPECS, type ActionDef, type ActionSpec, type InputKind, type OptionValues } from "./lib/actions";
 import {
@@ -10,6 +10,7 @@ import {
   cancelJob,
   chooseFiles,
   describeFiles,
+  dragPopup,
   focusPopup,
   getSettings,
   hidePopup,
@@ -23,7 +24,6 @@ import {
   openSettings,
   popupShown,
   resizePopup,
-  setPopupPinned,
   startJob,
 } from "./lib/ipc";
 import type { FileInfo, FileSet, JobDone, JobRequest, PopupOrigin, Settings } from "./lib/types";
@@ -32,10 +32,12 @@ import { DropZone, type DropZoneHint } from "./views/DropZone";
 import { ErrorView } from "./views/ErrorView";
 import { OptionsSheet } from "./views/OptionsSheet";
 import { CompressView } from "./views/CompressView";
+import { CropEditor } from "./views/CropEditor";
 import { PdfPagesEditor } from "./views/PdfPagesEditor";
 import { PresetView } from "./views/PresetView";
 import { ResizeEditor } from "./views/ResizeEditor";
 import { Result } from "./views/Result";
+import { RotateView } from "./views/RotateView";
 import { Running } from "./views/Running";
 
 const TRANSFORM_ORIGIN: Record<PopupOrigin, string> = {
@@ -67,6 +69,8 @@ type View =
   | { name: "actions"; set: FileSet }
   | { name: "options"; set: FileSet; action: ActionDef; spec: ActionSpec; files: FileInfo[] }
   | { name: "resize"; set: FileSet; action: ActionDef; files: FileInfo[] }
+  | { name: "crop"; set: FileSet; action: ActionDef; files: FileInfo[] }
+  | { name: "rotate"; set: FileSet; action: ActionDef; files: FileInfo[] }
   | { name: "pages"; set: FileSet; action: ActionDef; files: FileInfo[] }
   | { name: "compress"; set: FileSet; action: ActionDef; files: FileInfo[] }
   | { name: "preset"; set: FileSet; action: ActionDef; files: FileInfo[] }
@@ -90,6 +94,8 @@ const DEPTH: Record<View["name"], number> = {
   actions: 0,
   options: 1,
   resize: 1,
+  crop: 1,
+  rotate: 1,
   pages: 1,
   compress: 1,
   preset: 1,
@@ -99,16 +105,18 @@ const DEPTH: Record<View["name"], number> = {
 };
 
 const FOOTER: Record<View["name"], string> = {
-  loading: "esc close",
-  dropzone: "esc close",
-  actions: "↑↓ navigate · ↵ select · esc close",
+  loading: "⌘W close",
+  dropzone: "⌘W close",
+  actions: "↑↓ navigate · ↵ select · ⌘W close",
   options: "↵ run · esc back",
   resize: "drag the handles or type a size · ↵ resize · esc back",
+  crop: "drag the box or its handles · ↵ crop · esc back",
+  rotate: "click a picture to turn it · ↵ rotate · esc back",
   pages: "click pages to pick · shift-click for a range · esc back",
   compress: "↵ compress · esc back",
   preset: "↵ apply · esc back",
   running: "esc cancel",
-  result: "esc close",
+  result: "⌘W close",
   error: "esc back",
 };
 
@@ -279,13 +287,8 @@ function App() {
     requestAnimationFrame(() => requestAnimationFrame(() => void popupShown().catch(() => {})));
   }, [showCount]);
 
-  // The drop zone stays open when focus moves to Finder (so files can be dragged in), and so does a running job.
-  useEffect(() => {
-    void setPopupPinned(phase === "open" && (view.name === "dropzone" || view.name === "running")).catch(() => {});
-  }, [phase, view.name]);
-
   // Fit the window to the content: editors are wider (SPECS §5), height follows the content.
-  const wide = view.name === "resize" || view.name === "pages";
+  const wide = view.name === "resize" || view.name === "crop" || view.name === "pages";
   useLayoutEffect(() => {
     const el = contentRef.current;
     if (!el) return;
@@ -319,7 +322,7 @@ function App() {
     if ("set" in v) go({ name: "actions", set: v.set });
   }, [go]);
 
-  // Esc: back one view, cancel a running job, or close.
+  // The popup only closes from its × button or ⌘W. Esc goes back one view or cancels a running job.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === ",") {
@@ -327,15 +330,26 @@ function App() {
         void openSettings().catch(() => {});
         return;
       }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "w") {
+        e.preventDefault();
+        close();
+        return;
+      }
       if (e.key !== "Escape") return;
       const name = viewRef.current.name;
-      if (["options", "resize", "pages", "compress", "preset", "error"].includes(name)) back();
+      if (["options", "resize", "crop", "rotate", "pages", "compress", "preset", "error"].includes(name)) back();
       else if (name === "running") cancel();
-      else close();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [back, cancel, close]);
+
+  /** Press on the header (not on a button) and move: the popup follows the mouse or trackpad. */
+  const startDrag = (e: React.MouseEvent) => {
+    if (e.button !== 0 || (e.target as HTMLElement).closest("button, a, input")) return;
+    e.preventDefault();
+    void dragPopup().catch(() => {});
+  };
 
   const choose = () => {
     chooseFiles()
@@ -352,6 +366,8 @@ function App() {
     setNotice(undefined);
     const files = scope ? set.files.filter((f) => f.kind === scope) : set.files;
     if (action.id === "image_resize") go({ name: "resize", set, action, files });
+    else if (action.id === "image_crop") go({ name: "crop", set, action, files });
+    else if (action.id === "image_rotate") go({ name: "rotate", set, action, files });
     else if (action.id === "pdf_to_images") go({ name: "pages", set, action, files });
     else if (action.id === "image_compress") go({ name: "compress", set, action, files });
     else if (action.id === "apply_preset") go({ name: "preset", set, action, files });
@@ -365,7 +381,9 @@ function App() {
     if (!job || v.name !== "error") return;
     // Per-file actions retry only the files that failed; combined outputs retry everything.
     const failed = new Set(v.done.failures.map((f) => f.name));
-    const perFile = ["image_convert", "image_resize", "image_compress", "apply_preset"].includes(job.request.action);
+    const perFile = ["image_convert", "image_resize", "image_crop", "image_rotate", "image_compress", "apply_preset"].includes(
+      job.request.action,
+    );
     const files = perFile ? job.files.filter((f) => failed.has(f.name)) : job.files;
     void launch({ ...job, files: files.length > 0 ? files : job.files });
   };
@@ -399,17 +417,29 @@ function App() {
             void hidePopup().catch(() => {});
           }}
         >
-          <header className="flex h-13 shrink-0 items-center justify-between gap-3 px-4">
+          {/* The header is the title bar: drag it to move the popup. */}
+          <header onMouseDown={startDrag} className="flex h-13 shrink-0 items-center justify-between gap-3 px-4">
             {chipSet ? <FileChip set={chipSet} /> : <h1 className="type-title text-primary">QuickConvert</h1>}
-            <button
-              type="button"
-              onClick={() => void openSettings().catch(() => {})}
-              aria-label="Settings"
-              title="Settings (⌘,)"
-              className="flex size-7 shrink-0 items-center justify-center rounded-control text-secondary hover:bg-surface-hover"
-            >
-              <SettingsIcon size={18} strokeWidth={1.75} />
-            </button>
+            <div className="flex shrink-0 items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => void openSettings().catch(() => {})}
+                aria-label="Settings"
+                title="Settings (⌘,)"
+                className="flex size-7 items-center justify-center rounded-control text-secondary hover:bg-surface-hover"
+              >
+                <SettingsIcon size={18} strokeWidth={1.75} />
+              </button>
+              <button
+                type="button"
+                onClick={close}
+                aria-label="Close"
+                title="Close (⌘W) · QuickConvert stays in the menu bar"
+                className="flex size-7 items-center justify-center rounded-control text-secondary hover:bg-surface-hover"
+              >
+                <X size={18} strokeWidth={1.75} />
+              </button>
+            </div>
           </header>
 
           <div className="relative flex min-h-0 flex-col">
@@ -432,7 +462,9 @@ function App() {
                   onChoose={choose}
                   onRun={run}
                   onBack={back}
-                  onEditorRun={(v, request) => void launch({ action: v.action, request, files: v.files, set: v.set })}
+                  onEditorRun={(v, request, files) =>
+                    void launch({ action: v.action, request, files: files ?? v.files, set: v.set })
+                  }
                   onLaunch={(v, values) =>
                     void launch({ action: v.action, request: v.spec.toRequest(values), files: v.files, set: v.set })
                   }
@@ -463,8 +495,13 @@ interface BodyProps {
   onRun: (set: FileSet) => (action: ActionDef, scope?: InputKind) => void;
   onBack: () => void;
   onLaunch: (view: Extract<View, { name: "options" }>, values: OptionValues) => void;
-  /** Run a request built by an editor view (resize, PDF pages). */
-  onEditorRun: (view: Extract<View, { name: "resize" | "pages" | "compress" | "preset" }>, request: JobRequest) => void;
+  /** Run a request built by an editor view (resize, crop, rotate, PDF pages, compress, presets). */
+  onEditorRun: (
+    view: Extract<View, { name: "resize" | "crop" | "rotate" | "pages" | "compress" | "preset" }>,
+    request: JobRequest,
+    /** Only these files (Rotate skips images that are already right); default: the view's files. */
+    files?: FileInfo[],
+  ) => void;
   onCancel: () => void;
   onRetry: () => void;
   onAutoHide: () => void;
@@ -499,6 +536,12 @@ function Body(props: BodyProps) {
           onBack={onBack}
           onRun={(request) => onEditorRun(view, request)}
         />
+      );
+    case "crop":
+      return <CropEditor file={view.files[0]} onBack={onBack} onRun={(request) => onEditorRun(view, request)} />;
+    case "rotate":
+      return (
+        <RotateView files={view.files} onBack={onBack} onRun={(request, files) => onEditorRun(view, request, files)} />
       );
     case "compress":
       return <CompressView files={view.files} onBack={onBack} onRun={(request) => onEditorRun(view, request)} />;

@@ -31,7 +31,7 @@ QuickConvert is a lightweight desktop tray app for Windows and macOS. The user s
 4. User clicks an action (or types to filter, ↑/↓ + Enter, or presses 1–9).
 5. If the action has options, an inline options sheet slides in (sensible defaults pre-filled; Enter = run).
 6. Progress shows inline. On success: result view with **Show in folder**, **Open**, **Copy path**; popup auto-hides after 2.5 s unless hovered.
-7. Esc goes back one step, or closes the popup from the first view. Clicking outside closes it.
+7. Esc goes back one step. The popup stays open until the user closes it with its **×** button (or ⌘W / Ctrl+W); clicking elsewhere doesn't close it.
 
 If no files are selected (or selection can't be read), the popup opens in **Drop Zone** state: "Drop files here" + a "Choose files…" button.
 
@@ -52,6 +52,7 @@ The selection is only read when Explorer/Finder is the frontmost app at the mome
 - Top-left corner at cursor + (12 px, 12 px).
 - If it would overflow the right/bottom edge of the cursor's monitor work area, flip to the left/above the cursor.
 - Always clamp inside the work area with an 8 px margin. Correct on HiDPI and multi-monitor setups.
+- **Moving:** drag the header (anywhere but its buttons) to move the popup with the mouse or trackpad. Until the next show it stays where it was left: size changes (e.g. opening an editor) keep its top-left, nudged only as far as needed to stay on screen. The next hotkey press places it at the cursor again.
 
 ### Size
 - Width 360 px. Height fits content, max 480 px (list scrolls inside).
@@ -70,19 +71,24 @@ The selection is only read when Explorer/Finder is the frontmost app at the mome
 | **ResizeEditor** | Popup widens to 720 px. Image preview inside a dashed outline of the original size; drag the corner or right/bottom edge to resize, live W × H label follows the corner. Width/Height fields stay in sync both ways; aspect lock (on); 25/50/75/100 % shortcuts. Never larger than the original. |
 | **CompressView** | Target size (chips 20 / 50 / 100 / 200 / 500 KB / 1 MB + "Other" KB field) or Quality (slider; PNG explains it has no quality). A live card shows the real result for the first image: "4.1 MB → 48 KB · 1600×1200 · quality 78". |
 | **PresetView** | Preset cards (label + what it does, e.g. "200 × 230 px · 20–50 KB · JPG · 200 DPI"), the preset's note, and the same live result card. |
-| **CropEditor** | Phase 2. Image preview, draggable crop box, aspect presets (Free, 1:1, 4:3, 3:4, 16:9, 35×45 mm passport), rotate 90°. |
+| **CropEditor** | Popup widens to 720 px. The photo with a crop box on top; everything outside the box is dimmed. Drag inside the box to move it; 4 corner + 4 side handles resize it (rule-of-thirds grid while dragging, live W × H label). Shapes: **Free** / Square / 4:3 / 3:4 / 16:9 / Passport 35×45 — picking one fits the largest centred box of that shape, and handles then keep it (a corner follows the axis the pointer moved further along). Passport shows whether the crop is big enough to print sharply at 35 × 45 mm (≥ 413 × 531 px). Width/Height fields (the box keeps its centre). Rotate left/right turns the photo (spring; the box re-fits to the shape). Reset. Keyboard: arrows move the box, arrows on the corner handle resize it (Shift = 10×). |
+| **RotateView** | "Make every image" **Straight** / Left / Right / Upside down (Segmented). Below, every selected image as it will come out (one image: a 176 px picture; several: a 4-column grid that scrolls), turning with a spring as things change. Each image is checked for which way is up (§6 `image_rotate`); a badge says what happens to it: ↻ will be turned, ✓ already right (dimmed, skipped), ? couldn't tell (left as it is). Click a picture to turn it a quarter turn right, Shift-click or ← to turn it left (→ also turns right). One line sums it up ("2 will be turned · 1 already right, skipped · 1 couldn't tell (click to turn)"; "Checking which way is up… 3 of 5" while checking). Button "Rotate 2 of 4 images" / "Rotate" / "Nothing to turn". |
 | **PageTray** | Phase 2. Thumbnails of images/pages; drag to reorder, rotate, remove; then "Create PDF". |
 
 ### Keyboard
 - Typing anywhere focuses the search field and filters actions (fuzzy match on label + keywords).
 - ↑/↓ move highlight, Enter runs/opens options, 1–9 pick the Nth visible action (while the search field is empty).
-- Esc: clears the search first, then back one view → close popup. Cmd/Ctrl+, opens Settings.
+- Esc: clears the search, goes back one view, or cancels a running job; it never closes the popup. Cmd/Ctrl+W closes it. Cmd/Ctrl+, opens Settings.
 - Visible focus ring on all controls.
 
 ### Dismissal
-- Hide on: Esc from first view, focus lost (click outside / app switch), successful auto-hide.
-- Exception: the **Drop Zone** stays open when focus is lost, so files can be dragged in from Explorer/Finder. Esc closes it; a drop or file choice moves on to the action list.
-- **Never** hide while a job is running because of focus loss — keep running and show a tray notification when done.
+- Hide only on: the **×** button in the header (title "Close (⌘W) · QuickConvert stays in the menu bar"), Cmd/Ctrl+W, or the successful-result auto-hide (Settings → auto-hide).
+- Clicking outside or switching apps never hides it, so files can always be dragged in from Explorer/Finder and a running job stays in view.
+- Opening Settings sets the popup aside (it floats above other windows); closing Settings brings it back exactly as it was: same screen, files and position.
+
+### One copy at a time
+- Only one QuickConvert runs at once (an OS file lock in the app config folder, released automatically when the app exits or crashes). Two copies would both claim the hotkey and it would seem to do nothing.
+- A second copy registers nothing, shows "QuickConvert is already running — use it from its menu bar icon or its keyboard shortcut, or quit it first and then open this one again", and quits when the message is closed.
 
 ## 6. Action catalogue
 
@@ -99,8 +105,13 @@ Input types: `image` = JPG/JPEG, PNG, WebP, BMP, GIF (first frame), TIFF; `pdf` 
 | `pdf_merge` | Merge PDFs | 2+ PDFs | 1 PDF | Order: **selection order** |
 | `apply_preset` | Apply preset… | 1+ images | same count | **PresetView**. Pick from presets (§8); output in the preset's format, named `photo-<preset id>.jpg`. |
 
-### Phase 2
-`pdf_split` (every page / ranges) · `pdf_compress` (re-encode embedded images at lower quality/DPI) · `pdf_rotate` · `image_crop` (CropEditor) · `image_rotate` · `heic_to_jpg` (libheif, LGPL, dynamic) · `strip_metadata` (remove EXIF/GPS) · PageTray for `images_to_pdf`.
+### v0.2 (Phase 2)
+| id | Label | Input | Output | Options (defaults **bold**) |
+|---|---|---|---|---|
+| `image_crop` | Crop | 1 image | 1 image | **CropEditor** (visual). Box in pixels of the upright photo after an optional quarter turn; shape **Free**. Keeps the format (JPG/WebP saved at quality 90) and colour profile. Several images selected: listed but disabled ("Works on one image at a time"). |
+| `image_rotate` | Rotate | 1+ images | only the images that need turning | **RotateView**. The user picks how every image should end up: **Straight** / Left / Right / Upside down. Each image is first checked for which way is up (after its EXIF orientation is applied): on macOS the system Vision framework (offline, via `osascript`; nothing bundled) reads it four ways — text scored by letters of real words (upside-down text reads as gibberish), faces by confidence × how level they are — and a reading wins when it clearly beats the others (text ≥ 12 letters, faces ≥ 0.6, at least 2× the runner-up). No clear winner (landscapes, little text): "couldn't tell", treated as already straight. Each image's turn = what makes it straight + the target + the user's own clicks; images whose turn comes to 0 are skipped, not saved again. Keeps the format (JPG/WebP saved at quality 90) and colour profile; the result is upright pixels, not an orientation tag (many upload sites ignore the tag). Other systems: no detection yet (every image "couldn't tell"). |
+
+Still to come in v0.2: `pdf_split` (every page / ranges) · `pdf_compress` (re-encode embedded images at lower quality/DPI) · `pdf_rotate` · `heic_to_jpg` (libheif, LGPL, dynamic) · `strip_metadata` (remove EXIF/GPS) · PageTray for `images_to_pdf`.
 
 ### Phase 3
 `video_to_gif`, `extract_audio`, `video_compress` (FFmpeg LGPL build as sidecar) · `ocr_to_text` (Tesseract, Apache-2.0) · `batch_rename`.
@@ -150,7 +161,7 @@ Shipped presets are clearly labelled **examples**; users can add, edit, duplicat
 - Default location: **same folder as the original**. Setting: custom output folder.
 - Naming:
   - Single conversion: `photo.png` → `photo.jpg`; if that exists → `photo (1).jpg`, `photo (2).jpg`…
-  - Same-format operations: `photo.jpg` → `photo-compressed.jpg`, `photo-resized.jpg`, `photo-cropped.jpg`, `photo-<preset id>.jpg`.
+  - Same-format operations: `photo.jpg` → `photo-compressed.jpg`, `photo-resized.jpg`, `photo-cropped.jpg`, `photo-rotated.jpg`, `photo-<preset id>.jpg`.
   - `images_to_pdf`: `<first file name>.pdf` for one image; `<first file name> +N.pdf` for many.
   - `pdf_to_images`: folder `<pdf name> pages/` containing `<pdf name>-01.jpg`, `-02`, … (zero-padded to page count width).
   - `pdf_merge`: `<first file name> merged.pdf`.

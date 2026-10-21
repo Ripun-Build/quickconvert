@@ -1,7 +1,7 @@
 //! The Settings window (SPECS §10): a normal 480 × 560 window, created when first opened (never
 //! on the hotkey path) and reused while it stays open.
 
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
 use crate::errors::AppError;
 use crate::popup;
@@ -11,7 +11,7 @@ pub const LABEL: &str = "settings";
 /// Open (or focus) Settings. `tab` is "general" | "conversions" | "presets"; `notice` is a reason
 /// to show at the top, e.g. "shortcut-conflict".
 pub fn open(app: &AppHandle, tab: Option<&str>, notice: Option<&str>) -> Result<(), AppError> {
-    let _ = popup::hide(app);
+    let _ = popup::set_aside(app);
     if let Some(window) = app.get_webview_window(LABEL) {
         window.show()?;
         window.unminimize()?;
@@ -38,6 +38,14 @@ pub fn open(app: &AppHandle, tab: Option<&str>, notice: Option<&str>) -> Result<
     .center()
     .focused(true)
     .build()?;
+    let handle = app.clone();
+    window.on_window_event(move |event| {
+        if let WindowEvent::Destroyed = event {
+            if let Err(err) = popup::bring_back(&handle) {
+                eprintln!("[settings] {err:?}");
+            }
+        }
+    });
     window.set_focus()?;
     Ok(())
 }

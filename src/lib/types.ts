@@ -74,6 +74,23 @@ export type ResizeMode =
   | { kind: "exact"; width: number; height: number; keepAspect: boolean }
   | { kind: "percent"; percent: number };
 
+/** `crop::Turn`: clockwise degrees. */
+export type Turn = 0 | 90 | 180 | 270;
+
+/** `crop::CropRect`: pixels of the upright image after the turn. */
+export interface CropRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** `upright::RotateCheck`: a thumbnail and the clockwise degrees that make the image straight. */
+export interface RotateCheck {
+  url: string;
+  upright: Turn | null;
+}
+
 /** `compress::CompressTarget` */
 export type CompressTarget = { kind: "size"; maxKb: number } | { kind: "quality"; quality: number };
 
@@ -114,7 +131,10 @@ export type JobRequest =
       pages: { kind: "all" } | { kind: "range"; spec: string };
     }
   | { action: "image_compress"; target: CompressTarget }
-  | { action: "apply_preset"; preset: Preset };
+  | { action: "apply_preset"; preset: Preset }
+  | { action: "image_crop"; rect: CropRect; turn: Turn }
+  /** Each image's own turn, keyed by path. */
+  | { action: "image_rotate"; turns: Record<string, Turn> };
 
 /** Payload of the `job://progress` event. */
 export interface JobProgress {

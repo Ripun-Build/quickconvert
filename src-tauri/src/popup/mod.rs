@@ -7,12 +7,12 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition};
+use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, PhysicalPosition};
 
 use crate::errors::AppError;
 use crate::files::{self, FileSet};
 use crate::selection::{self, Selection};
-use position::{place_at_cursor, place_centered, Origin, Rect};
+use position::{keep_inside, place_at_cursor, place_centered, Area, Origin, Rect};
 
 pub const LABEL: &str = "popup";
 /// Logical sizes. The list views are `WIDTH` wide and as tall as their content (up to `MAX_HEIGHT`);
@@ -74,8 +74,10 @@ pub struct PopupState {
     pub show_requested: Mutex<Option<Instant>>,
     /// Incremented on every show; stale selection results are dropped.
     generation: AtomicU64,
-    /// While pinned (drop zone), losing focus doesn't hide the popup.
-    pinned: AtomicBool,
+    /// The user dragged the popup since it was shown: size changes keep it where they left it.
+    dragged: AtomicBool,
+    /// Hidden only because Settings opened; it comes back, on the same screen, when Settings closes.
+    set_aside: AtomicBool,
     layout: Mutex<Option<Layout>>,
 }
 
@@ -85,17 +87,10 @@ impl PopupState {
             blur,
             show_requested: Mutex::new(None),
             generation: AtomicU64::new(0),
-            pinned: AtomicBool::new(false),
+            dragged: AtomicBool::new(false),
+            set_aside: AtomicBool::new(false),
             layout: Mutex::new(None),
         }
-    }
-
-    pub fn is_pinned(&self) -> bool {
-        self.pinned.load(Ordering::Relaxed)
-    }
-
-    pub fn set_pinned(&self, pinned: bool) {
-        self.pinned.store(pinned, Ordering::Relaxed);
     }
 }
 
@@ -127,7 +122,8 @@ pub fn show(app: &AppHandle, anchor: Anchor, read_selection: bool) -> Result<(),
     };
 
     let generation = state.generation.fetch_add(1, Ordering::Relaxed) + 1;
-    state.set_pinned(false);
+    state.dragged.store(false, Ordering::Relaxed);
+    state.set_aside.store(false, Ordering::Relaxed);
     if let Ok(mut slot) = state.show_requested.lock() {
         *slot = Some(requested);
     }
@@ -174,14 +170,60 @@ pub fn show(app: &AppHandle, anchor: Anchor, read_selection: bool) -> Result<(),
 }
 
 pub fn hide(app: &AppHandle) -> Result<(), AppError> {
-    app.state::<PopupState>().set_pinned(false);
+    app.state::<PopupState>()
+        .set_aside
+        .store(false, Ordering::Relaxed);
     if let Some(window) = app.get_webview_window(LABEL) {
         window.hide()?;
     }
     Ok(())
 }
 
-/// Fit the window to the content (logical px), keeping the side of the cursor it opened on.
+/// Step aside for the Settings window (the popup floats above other windows). The page isn't
+/// touched, so `bring_back` shows it exactly as it was: same screen, same files, same place.
+pub fn set_aside(app: &AppHandle) -> Result<(), AppError> {
+    let Some(window) = app.get_webview_window(LABEL) else {
+        return Ok(());
+    };
+    if window.is_visible()? {
+        window.hide()?;
+        app.state::<PopupState>()
+            .set_aside
+            .store(true, Ordering::Relaxed);
+    }
+    Ok(())
+}
+
+/// Settings closed: show the popup again if it was set aside for it.
+pub fn bring_back(app: &AppHandle) -> Result<(), AppError> {
+    if !app
+        .state::<PopupState>()
+        .set_aside
+        .swap(false, Ordering::Relaxed)
+    {
+        return Ok(());
+    }
+    if let Some(window) = app.get_webview_window(LABEL) {
+        window.show()?;
+        window.set_focus()?;
+    }
+    Ok(())
+}
+
+/// Move the popup with the mouse (pressed on its header). Native drag: it follows until release.
+pub fn start_drag(app: &AppHandle) -> Result<(), AppError> {
+    let window = app
+        .get_webview_window(LABEL)
+        .ok_or_else(|| AppError::internal("popup window missing"))?;
+    app.state::<PopupState>()
+        .dragged
+        .store(true, Ordering::Relaxed);
+    window.start_dragging()?;
+    Ok(())
+}
+
+/// Fit the window to the content (logical px), keeping the side of the cursor it opened on, or the
+/// place the user dragged it to.
 pub fn resize(app: &AppHandle, width: f64, height: f64) -> Result<(), AppError> {
     let width = width.clamp(WIDTH, EDITOR_WIDTH);
     let max_height = if width > WIDTH {
@@ -200,7 +242,53 @@ pub fn resize(app: &AppHandle, width: f64, height: f64) -> Result<(), AppError> 
             ..l
         });
     if let Some(layout) = layout {
-        apply_layout(app, layout)?;
+        if state.dragged.load(Ordering::Relaxed) {
+            resize_in_place(app, layout)?;
+        } else {
+            apply_layout(app, layout)?;
+        }
+    }
+    Ok(())
+}
+
+/// Resize without snapping back to the cursor: the top-left stays where the user dragged it, nudged
+/// only as far as needed to keep the popup on screen.
+fn resize_in_place(app: &AppHandle, layout: Layout) -> Result<(), AppError> {
+    let window = app
+        .get_webview_window(LABEL)
+        .ok_or_else(|| AppError::internal("popup window missing"))?;
+    let scale = window.scale_factor()?;
+    let at = window.outer_position()?;
+    let area = match window.current_monitor()? {
+        Some(monitor) => {
+            let s = monitor.scale_factor();
+            let wa = monitor.work_area();
+            Area {
+                x: f64::from(wa.position.x) / s,
+                y: f64::from(wa.position.y) / s,
+                width: f64::from(wa.size.width) / s,
+                height: f64::from(wa.size.height) / s,
+            }
+        }
+        None => {
+            let (wa, s) = (layout.work_area, layout.scale);
+            Area {
+                x: f64::from(wa.x) / s,
+                y: f64::from(wa.y) / s,
+                width: f64::from(wa.width) / s,
+                height: f64::from(wa.height) / s,
+            }
+        }
+    };
+    let (x, y) = keep_inside(
+        (f64::from(at.x) / scale, f64::from(at.y) / scale),
+        (layout.width, layout.height),
+        area,
+    );
+    window.set_size(LogicalSize::new(layout.width, layout.height))?;
+    window.set_position(LogicalPosition::new(x, y))?;
+    if let Ok(mut slot) = app.state::<PopupState>().layout.lock() {
+        *slot = Some(layout);
     }
     Ok(())
 }

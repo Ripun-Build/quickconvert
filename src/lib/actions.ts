@@ -9,6 +9,8 @@ export type ActionId =
   | "pdf_to_images"
   | "image_convert"
   | "image_resize"
+  | "image_crop"
+  | "image_rotate"
   | "image_compress"
   | "pdf_merge"
   | "apply_preset";
@@ -67,6 +69,23 @@ export const ACTIONS: readonly ActionDef[] = [
     input: "image",
     minFiles: 1,
     keywords: ["scale", "dimensions", "pixels", "smaller"],
+  },
+  {
+    id: "image_crop",
+    label: "Crop",
+    group: "edit",
+    input: "image",
+    minFiles: 1,
+    maxFiles: 1,
+    keywords: ["trim", "cut", "passport", "square", "aspect", "rotate"],
+  },
+  {
+    id: "image_rotate",
+    label: "Rotate",
+    group: "edit",
+    input: "image",
+    minFiles: 1,
+    keywords: ["turn", "sideways", "upright", "flip", "orientation"],
   },
   {
     id: "image_compress",
@@ -269,7 +288,7 @@ const num = (v: OptionValues[string]) => Number(v);
 /** Page list like "1-3, 5". Syntax only; Rust checks it against the page count. */
 export const PAGE_RANGE = /^\s*\d+\s*(-\s*\d+\s*)?(,\s*\d+\s*(-\s*\d+\s*)?)*,?\s*$/;
 
-/** Actions that can run. Resize, PDF → images, Compress and presets use their own editor views. */
+/** Actions that can run. Resize, crop, rotate, PDF → images, Compress and presets use their own editor views. */
 export const ACTION_SPECS: Partial<Record<ActionId, ActionSpec>> = {
   images_to_pdf: {
     submit: "Create PDF",
@@ -314,6 +333,24 @@ export const ACTION_SPECS: Partial<Record<ActionId, ActionSpec>> = {
     // The preset view supplies the chosen preset.
     toRequest: () => {
       throw new Error("apply_preset needs a preset");
+    },
+  },
+  image_crop: {
+    submit: "Crop",
+    defaults: {},
+    fields: [],
+    // The crop editor supplies the box and turn.
+    toRequest: () => {
+      throw new Error("image_crop needs a crop box");
+    },
+  },
+  image_rotate: {
+    submit: "Rotate",
+    defaults: {},
+    fields: [],
+    // The rotate view supplies the direction.
+    toRequest: () => {
+      throw new Error("image_rotate needs a direction");
     },
   },
   pdf_merge: {

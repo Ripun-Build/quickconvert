@@ -78,13 +78,34 @@ Work top to bottom. One milestone per commit (`M<n>: summary`). Each milestone m
 - [x] `npm run tauri build` produces installer ≤ 25 MB (universal DMG: 14.3 MB)
 - [x] README with screenshots, install steps, and licences of bundled libraries
 
-## Phase 2 (after v1)
-- [ ] CropEditor (aspect presets, rotate) + `image_crop`
-- [ ] PageTray (reorder/rotate/remove before PDF)
-- [ ] `pdf_split`, `pdf_compress`, `pdf_rotate`, `image_rotate`
-- [ ] `heic_to_jpg` via libheif (dynamic, LGPL)
+## Phase 2 — the v0.2.0 update
+v0.1.0 is public, so Phase 2 ships as an update of the same app: settings and presets saved by v0.1.0 keep working, and one v0.2.0 release goes out when all of it is done.
+
+### M8 — Crop and rotate
+- [x] CropEditor (shapes incl. 35×45 mm passport, rotate) + `image_crop`
+- [x] Rotate as its own action + `image_rotate`: "make every image Straight / Left / Right / Upside down", each image checked for which way is up (Vision: text + faces), per-image turns, click to correct, already-right images skipped
+
+### M8b — Popup handling (feedback on M8)
+- [x] Close only with the × button or ⌘W (no Esc / click-away closing)
+- [x] Drag the popup by its header; it stays put when its size changes
+- [x] One copy at a time: a second copy explains and quits
+- [x] Closing Settings brings the popup back on the screen it was showing
+
+### M9 — HEIC and metadata
+- [ ] HEIC/HEIF photos as input for every image action (macOS built-in decoder)
 - [ ] `strip_metadata`
-- [ ] Other OS: implement real selection, test, package
+
+### M10 — PDF tools
+- [ ] `pdf_split`, `pdf_rotate`, `pdf_compress`
+
+### M11 — PageTray
+- [ ] PageTray (reorder/rotate/remove before PDF)
+
+### M12 — v0.2.0 release
+- [ ] Version 0.2.0, release notes, README (use + screenshots) for the new behaviour, v0.1.0 settings/presets still load, universal DMG, GitHub release
+
+## Later updates
+- [ ] Other OS: implement real selection, test, package (its own update, once it can be tested on Windows)
 
 ## Phase 3
 - [ ] Explorer/Finder right-click entry
