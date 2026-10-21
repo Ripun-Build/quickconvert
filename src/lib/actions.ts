@@ -107,9 +107,16 @@ const GROUP_TITLES: Record<ActionGroup, string> = {
 };
 const GROUP_ORDER: ActionGroup[] = ["convert", "edit", "compress"];
 
+export interface MenuItem {
+  action: ActionDef;
+  /** False when the action doesn't fit the selection; it's shown greyed out with `reason`. */
+  enabled: boolean;
+  reason?: string;
+}
+
 export interface MenuSection {
   title: string;
-  actions: ActionDef[];
+  items: MenuItem[];
   /** Set when the section only applies to the files of this kind (mixed selections). */
   scope?: InputKind;
 }
@@ -125,7 +132,31 @@ export function accepts(action: ActionDef, kind: InputKind, count: number): bool
   return action.input === kind && count >= action.minFiles && count <= (action.maxFiles ?? Infinity);
 }
 
-/** Menu for a selection: Suggested first, then the remaining valid actions by group. */
+const noun = (kind: InputKind, many: boolean) => (kind === "pdf" ? (many ? "PDFs" : "PDF") : many ? "images" : "image");
+
+/** Short explanation of why `action` can't run on `count` files of `kind`. */
+export function unavailableReason(action: ActionDef, kind: InputKind, count: number): string {
+  const want = action.input;
+  if (want !== kind || count < action.minFiles) {
+    if (action.minFiles > 1) return `Needs ${action.minFiles}+ ${noun(want, true)}`;
+    if (action.maxFiles === 1) return `Needs one ${noun(want, false)}`;
+    return want === "pdf" ? "Needs a PDF" : "Needs images";
+  }
+  return `Works on one ${noun(want, false)} at a time`;
+}
+
+const item = (action: ActionDef, kind: InputKind, count: number): MenuItem =>
+  accepts(action, kind, count)
+    ? { action, enabled: true }
+    : { action, enabled: false, reason: unavailableReason(action, kind, count) };
+
+/** Enabled items first, keeping registry order within each half. */
+const enabledFirst = (items: MenuItem[]) => [...items.filter((i) => i.enabled), ...items.filter((i) => !i.enabled)];
+
+/**
+ * Menu for a selection: Suggested first, then every other action by group. Actions that don't fit
+ * the selection stay visible but disabled, with a reason.
+ */
 export function buildMenu(kinds: readonly InputKind[]): Menu {
   if (kinds.length === 0) return { sections: [], incompatible: false };
 
@@ -133,30 +164,32 @@ export function buildMenu(kinds: readonly InputKind[]): Menu {
   const pdfs = kinds.length - images;
   if (images > 0 && pdfs > 0) {
     // No v1 action takes both images and PDFs, so offer per-type groups instead.
-    return {
-      incompatible: true,
-      sections: [
-        scopedSection("image", images, `For the ${plural(images, "image")}`),
-        scopedSection("pdf", pdfs, `For the ${plural(pdfs, "PDF")}`),
-      ].filter((s) => s.actions.length > 0),
-    };
+    const forImages = ACTIONS.filter((a) => accepts(a, "image", images));
+    const forPdfs = ACTIONS.filter((a) => accepts(a, "pdf", pdfs));
+    const neither = ACTIONS.filter((a) => !forImages.includes(a) && !forPdfs.includes(a));
+    const sections: MenuSection[] = [
+      { title: `For the ${plural(images, "image")}`, scope: "image", items: forImages.map((a) => item(a, "image", images)) },
+      { title: `For the ${plural(pdfs, "PDF")}`, scope: "pdf", items: forPdfs.map((a) => item(a, "pdf", pdfs)) },
+      {
+        title: "Not available",
+        items: neither.map((a) => item(a, a.input, a.input === "pdf" ? pdfs : images)),
+      },
+    ];
+    return { incompatible: true, sections: sections.filter((s) => s.items.length > 0) };
   }
 
   const kind: InputKind = images > 0 ? "image" : "pdf";
   const count = kinds.length;
   const shape = kind === "image" ? (count === 1 ? "oneImage" : "manyImages") : count === 1 ? "onePdf" : "manyPdfs";
   const suggested = SUGGESTED[shape].map(byId).filter((a) => accepts(a, kind, count));
-  const rest = ACTIONS.filter((a) => accepts(a, kind, count) && !suggested.includes(a));
+  const rest = ACTIONS.filter((a) => !suggested.includes(a));
 
-  const sections: MenuSection[] = [{ title: "Suggested", actions: suggested }];
+  const sections: MenuSection[] = [{ title: "Suggested", items: suggested.map((a) => item(a, kind, count)) }];
   for (const group of GROUP_ORDER) {
-    sections.push({ title: GROUP_TITLES[group], actions: rest.filter((a) => a.group === group) });
+    const items = rest.filter((a) => a.group === group).map((a) => item(a, kind, count));
+    sections.push({ title: GROUP_TITLES[group], items: enabledFirst(items) });
   }
-  return { sections: sections.filter((s) => s.actions.length > 0), incompatible: false };
-}
-
-function scopedSection(kind: InputKind, count: number, title: string): MenuSection {
-  return { title, scope: kind, actions: ACTIONS.filter((a) => accepts(a, kind, count)) };
+  return { sections: sections.filter((s) => s.items.length > 0), incompatible: false };
 }
 
 function plural(n: number, word: string): string {
@@ -170,8 +203,8 @@ export function filterMenu(menu: Menu, query: string): Menu {
   return {
     ...menu,
     sections: menu.sections
-      .map((s) => ({ ...s, actions: s.actions.filter((a) => matches(a, q)) }))
-      .filter((s) => s.actions.length > 0),
+      .map((s) => ({ ...s, items: s.items.filter((i) => matches(i.action, q)) }))
+      .filter((s) => s.items.length > 0),
   };
 }
 
@@ -199,9 +232,9 @@ function isSubsequence(needle: string, haystack: string): boolean {
   return false;
 }
 
-/** Actions in display order; index + 1 is the 1–9 shortcut. */
+/** Runnable actions in display order; index + 1 is the 1–9 shortcut. */
 export function flatActions(menu: Menu): ActionDef[] {
-  return menu.sections.flatMap((s) => s.actions);
+  return menu.sections.flatMap((s) => s.items.filter((i) => i.enabled).map((i) => i.action));
 }
 
 // ---- Options (SPECS §6 defaults) ----
@@ -219,7 +252,8 @@ export type OptionField =
   | (FieldBase & { kind: "segmented"; choices: { value: string; label: string }[] })
   | (FieldBase & { kind: "slider"; min: number; max: number; step: number; unit?: string })
   | (FieldBase & { kind: "number"; min: number; max: number; unit: string })
-  | (FieldBase & { kind: "toggle" });
+  | (FieldBase & { kind: "toggle" })
+  | (FieldBase & { kind: "text"; placeholder: string; valid: (value: string) => boolean; hint: string });
 
 export interface ActionSpec {
   fields: OptionField[];
@@ -232,7 +266,10 @@ export interface ActionSpec {
 const str = (v: OptionValues[string]) => String(v);
 const num = (v: OptionValues[string]) => Number(v);
 
-/** Actions that can run. The rest (compress, presets, PDF → images) arrive in M4–M5. */
+/** Page list like "1-3, 5". Syntax only; Rust checks it against the page count. */
+export const PAGE_RANGE = /^\s*\d+\s*(-\s*\d+\s*)?(,\s*\d+\s*(-\s*\d+\s*)?)*,?\s*$/;
+
+/** Actions that can run. Compress and presets arrive in M5. */
 export const ACTION_SPECS: Partial<Record<ActionId, ActionSpec>> = {
   images_to_pdf: {
     submit: "Create PDF",
@@ -269,6 +306,55 @@ export const ACTION_SPECS: Partial<Record<ActionId, ActionSpec>> = {
     defaults: {},
     fields: [],
     toRequest: () => ({ action: "pdf_merge" }),
+  },
+  pdf_to_images: {
+    submit: "Export pages",
+    defaults: { format: "jpg", dpi: "150", pages: "all", range: "" },
+    fields: [
+      {
+        kind: "segmented",
+        key: "format",
+        label: "Format",
+        choices: [
+          { value: "jpg", label: "JPG" },
+          { value: "png", label: "PNG" },
+        ],
+      },
+      {
+        kind: "segmented",
+        key: "dpi",
+        label: "Resolution",
+        choices: [
+          { value: "72", label: "72 DPI" },
+          { value: "150", label: "150 DPI" },
+          { value: "300", label: "300 DPI" },
+        ],
+      },
+      {
+        kind: "segmented",
+        key: "pages",
+        label: "Pages",
+        choices: [
+          { value: "all", label: "All" },
+          { value: "range", label: "Range" },
+        ],
+      },
+      {
+        kind: "text",
+        key: "range",
+        label: "Page range",
+        placeholder: "1-3, 5",
+        hint: "Pages and ranges separated by commas, like 1-3, 5",
+        valid: (v) => PAGE_RANGE.test(v) && /\d/.test(v),
+        visible: (v) => v.pages === "range",
+      },
+    ],
+    toRequest: (v) => ({
+      action: "pdf_to_images",
+      format: str(v.format) as "jpg" | "png",
+      dpi: num(v.dpi),
+      pages: v.pages === "range" ? { kind: "range", spec: str(v.range) } : { kind: "all" },
+    }),
   },
   image_convert: {
     submit: "Convert",

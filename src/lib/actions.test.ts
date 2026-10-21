@@ -1,10 +1,16 @@
 // Run with `npm test` (Node's built-in runner; types are stripped at runtime).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ACTION_SPECS, ACTIONS, buildMenu, filterMenu, flatActions, type InputKind } from "./actions.ts";
+import { ACTION_SPECS, ACTIONS, PAGE_RANGE, buildMenu, filterMenu, flatActions, type InputKind } from "./actions.ts";
 
 const ids = (kinds: InputKind[]) => flatActions(buildMenu(kinds)).map((a) => a.id);
-const suggested = (kinds: InputKind[]) => buildMenu(kinds).sections.find((s) => s.title === "Suggested")?.actions.map((a) => a.id);
+const suggested = (kinds: InputKind[]) =>
+  buildMenu(kinds)
+    .sections.find((s) => s.title === "Suggested")
+    ?.items.map((i) => i.action.id);
+/** Every listed action → its reason ("" when enabled). */
+const listed = (kinds: InputKind[]) =>
+  Object.fromEntries(buildMenu(kinds).sections.flatMap((s) => s.items).map((i) => [i.action.id, i.reason ?? ""]));
 
 test("one image suggests convert, compress, resize, combine", () => {
   assert.deepEqual(suggested(["image"]), ["image_convert", "image_compress", "image_resize", "images_to_pdf"]);
@@ -19,12 +25,13 @@ test("many images suggest combine into PDF first", () => {
   assert.equal(ids(["image", "image"])[0], "images_to_pdf");
 });
 
-test("non-suggested valid actions follow, grouped", () => {
-  const menu = buildMenu(["image", "image"]);
-  assert.deepEqual(
-    menu.sections.map((s) => s.title),
-    ["Suggested", "Convert", "Compress"],
-  );
+test("every action is listed; the ones that don't fit are disabled with a reason", () => {
+  const all = listed(["image", "image"]);
+  assert.equal(Object.keys(all).length, ACTIONS.length);
+  assert.equal(all.images_to_pdf, "");
+  assert.equal(all.pdf_to_images, "Needs one PDF");
+  assert.equal(all.pdf_merge, "Needs 2+ PDFs");
+  // Runnable actions (and their 1–9 numbers) skip the disabled ones.
   assert.deepEqual(ids(["image", "image"]), [
     "images_to_pdf",
     "image_compress",
@@ -34,14 +41,37 @@ test("non-suggested valid actions follow, grouped", () => {
   ]);
 });
 
-test("one PDF suggests PDF to images, never merge", () => {
-  assert.deepEqual(suggested(["pdf"]), ["pdf_to_images"]);
-  assert.ok(!ids(["pdf"]).includes("pdf_merge"));
+test("enabled actions come first within a group", () => {
+  const convert = buildMenu(["image"]).sections.find((s) => s.title === "Convert")!;
+  assert.deepEqual(
+    convert.items.map((i) => [i.action.id, i.enabled]),
+    [
+      ["pdf_to_images", false],
+      ["pdf_merge", false],
+    ],
+  );
+  const pdfConvert = buildMenu(["pdf"]).sections.find((s) => s.title === "Convert")!;
+  assert.deepEqual(
+    pdfConvert.items.map((i) => [i.action.id, i.enabled]),
+    [
+      ["images_to_pdf", false],
+      ["image_convert", false],
+      ["pdf_merge", false],
+    ],
+  );
 });
 
-test("two PDFs suggest merge, and PDF to images needs exactly one", () => {
+test("one PDF suggests PDF to images; image actions say they need images", () => {
+  assert.deepEqual(suggested(["pdf"]), ["pdf_to_images"]);
+  const all = listed(["pdf"]);
+  assert.equal(all.image_convert, "Needs images");
+  assert.equal(all.pdf_merge, "Needs 2+ PDFs");
+  assert.deepEqual(ids(["pdf"]), ["pdf_to_images"]);
+});
+
+test("two PDFs suggest merge, and PDF to images works on one at a time", () => {
   assert.deepEqual(suggested(["pdf", "pdf"]), ["pdf_merge"]);
-  assert.ok(!ids(["pdf", "pdf"]).includes("pdf_to_images"));
+  assert.equal(listed(["pdf", "pdf"]).pdf_to_images, "Works on one PDF at a time");
 });
 
 test("mixed images and PDFs are incompatible with per-type groups", () => {
@@ -52,11 +82,16 @@ test("mixed images and PDFs are incompatible with per-type groups", () => {
     [
       ["For the 2 images", "image"],
       ["For the 1 PDF", "pdf"],
+      ["Not available", undefined],
     ],
   );
   assert.deepEqual(
-    menu.sections[1].actions.map((a) => a.id),
+    menu.sections[1].items.map((i) => i.action.id),
     ["pdf_to_images"],
+  );
+  assert.deepEqual(
+    menu.sections[2].items.map((i) => [i.action.id, i.reason]),
+    [["pdf_merge", "Needs 2+ PDFs"]],
   );
 });
 
@@ -94,6 +129,13 @@ test("default options build the requests Rust expects", () => {
     mode: { kind: "exact", width: 800, height: 1600, keepAspect: true },
   });
   assert.deepEqual(request("pdf_merge"), { action: "pdf_merge" });
+  assert.deepEqual(request("pdf_to_images"), { action: "pdf_to_images", format: "jpg", dpi: 150, pages: { kind: "all" } });
+  assert.deepEqual(request("pdf_to_images", { pages: "range", range: "1-3,5", format: "png", dpi: "300" }), {
+    action: "pdf_to_images",
+    format: "png",
+    dpi: 300,
+    pages: { kind: "range", spec: "1-3,5" },
+  });
 });
 
 test("quality is hidden for PNG; resize shows only the active mode's fields", () => {
@@ -104,4 +146,9 @@ test("quality is hidden for PNG; resize shows only the active mode's fields", ()
   const resize = ACTION_SPECS.image_resize!;
   const shown = resize.fields.filter((f) => !f.visible || f.visible({ mode: "exact" })).map((f) => f.key);
   assert.deepEqual(shown, ["mode", "width", "height", "keepAspect"]);
+});
+
+test("page range field accepts lists and ranges only", () => {
+  for (const ok of ["1", "1-3", "1-3,5", " 2 , 4 - 6 ", "1,"]) assert.ok(PAGE_RANGE.test(ok), ok);
+  for (const bad of ["", "a", "1--3", "-3", "1-3-5", "1.5"]) assert.ok(!PAGE_RANGE.test(bad) || !/\d/.test(bad), bad);
 });

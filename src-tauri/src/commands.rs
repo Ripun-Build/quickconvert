@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
+use crate::convert::pdf_render::{self, PageSize};
 use crate::errors::AppError;
 use crate::files::{self, FileSet, ThumbnailCache};
 use crate::jobs::{self, JobRequest, Jobs};
@@ -87,6 +88,38 @@ pub async fn thumbnail(app: AppHandle, path: String) -> Result<String, AppError>
     })
     .await
     .map_err(|e| AppError::internal(e.to_string()))?
+}
+
+/// Page sizes of a PDF (points), for the pages editor.
+#[tauri::command]
+pub async fn pdf_page_sizes(app: AppHandle, path: String) -> Result<Vec<PageSize>, AppError> {
+    blocking(move || {
+        let lib = pdf_render::pdfium(&jobs::pdfium_dirs(&app))?;
+        pdf_render::page_sizes(lib, &PathBuf::from(path))
+    })
+    .await
+}
+
+/// Thumbnails for the given 1-based pages.
+#[tauri::command]
+pub async fn pdf_thumbnails(
+    app: AppHandle,
+    path: String,
+    pages: Vec<u32>,
+) -> Result<Vec<String>, AppError> {
+    blocking(move || {
+        let lib = pdf_render::pdfium(&jobs::pdfium_dirs(&app))?;
+        pdf_render::page_thumbnails(lib, &PathBuf::from(path), &pages, 160)
+    })
+    .await
+}
+
+async fn blocking<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T, AppError> + Send + 'static,
+) -> Result<T, AppError> {
+    tauri::async_runtime::spawn_blocking(work)
+        .await
+        .map_err(|e| AppError::internal(e.to_string()))?
 }
 
 /// Start a conversion; progress arrives as `job://progress`, the result as `job://done`.

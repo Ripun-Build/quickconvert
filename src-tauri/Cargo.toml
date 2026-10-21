@@ -29,6 +29,7 @@ tauri-plugin-dialog = "2"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp", "bmp", "gif", "tiff"] }
 lopdf = "0.45.0"
 webp = "0.3.1"
+pdfium-render = "0.9.4"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

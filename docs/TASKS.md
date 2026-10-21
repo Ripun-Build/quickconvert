@@ -44,10 +44,13 @@ Work top to bottom. One milestone per commit (`M<n>: summary`). Each milestone m
 - [x] Colour profiles (ICC) kept in JPG/PNG/WebP outputs and PDF images
 
 ## M4 — PDF to images
-- [ ] Bundle pdfium dynamic library as a resource; load at runtime with clear error if missing
-- [ ] `pdf_to_images` with format, DPI and page-range parsing (tests for "1-3,5")
-- [ ] Output folder `<name> pages/` with zero-padded names
-- [ ] Password-protected PDF → friendly error
+- [x] Bundle pdfium dynamic library as a resource; load at runtime with clear error if missing
+- [x] `pdf_to_images` with format, DPI and page-range parsing (tests for "1-3,5")
+- [x] Output folder `<name> pages/` with zero-padded names
+- [x] Password-protected PDF → friendly error
+- [x] `scripts/fetch-pdfium.sh` (pinned version + SHA-256; binary git-ignored, licences kept)
+- [x] PdfPagesEditor: page thumbnails, click/Shift-click selection synced with the range field, Screen/Standard/Print sizes
+- [x] Action list shows every action; unavailable ones disabled with a reason
 
 ## M5 — Compress + presets
 - [ ] `image_compress` quality mode

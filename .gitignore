@@ -19,3 +19,8 @@ npm-debug.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# pdfium binary (fetched by scripts/fetch-pdfium.sh)
+src-tauri/resources/pdfium/*.dylib
+src-tauri/resources/pdfium/*.dll
+src-tauri/resources/pdfium/*.so

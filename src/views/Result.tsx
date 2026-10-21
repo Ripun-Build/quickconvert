@@ -10,6 +10,13 @@ import type { JobDone } from "../lib/types";
 
 const AUTO_HIDE_MS = 2500;
 const baseName = (path: string) => path.split(/[\\/]/).pop() ?? path;
+const parentOf = (path: string) => path.slice(0, Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")));
+
+/** ` in “report pages”` when every output sits in the same folder. */
+function sharedFolder(outputs: string[]): string {
+  const dir = parentOf(outputs[0]);
+  return dir && outputs.every((o) => parentOf(o) === dir) ? ` in “${truncateMiddle(baseName(dir), 28)}”` : "";
+}
 
 export function Result({ done, onAutoHide }: { done: JobDone; onAutoHide: () => void }) {
   const [engaged, setEngaged] = useState(false);
@@ -47,7 +54,7 @@ export function Result({ done, onAutoHide }: { done: JobDone; onAutoHide: () => 
         <div className="min-w-0">
           <h2 className="type-title text-primary">Saved</h2>
           <p className="type-caption truncate text-secondary" title={outputs.join("\n")}>
-            {single ? truncateMiddle(baseName(outputs[0]), 40) : `${outputs.length} files`}
+            {single ? truncateMiddle(baseName(outputs[0]), 40) : `${outputs.length} files${sharedFolder(outputs)}`}
           </p>
         </div>
       </div>

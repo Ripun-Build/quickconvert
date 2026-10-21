@@ -152,6 +152,11 @@ fn extension_of(path: &Path) -> String {
         .unwrap_or_default()
 }
 
+/// `data:<mime>;base64,…` URL for the UI.
+pub(crate) fn data_url(mime: &str, bytes: &[u8]) -> String {
+    format!("data:{mime};base64,{}", base64(bytes))
+}
+
 /// Standard base64 with padding (RFC 4648).
 fn base64(bytes: &[u8]) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";

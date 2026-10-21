@@ -27,6 +27,7 @@ import { ActionList } from "./views/ActionList";
 import { DropZone, type DropZoneHint } from "./views/DropZone";
 import { ErrorView } from "./views/ErrorView";
 import { OptionsSheet } from "./views/OptionsSheet";
+import { PdfPagesEditor } from "./views/PdfPagesEditor";
 import { ResizeEditor } from "./views/ResizeEditor";
 import { Result } from "./views/Result";
 import { Running } from "./views/Running";
@@ -60,6 +61,7 @@ type View =
   | { name: "actions"; set: FileSet }
   | { name: "options"; set: FileSet; action: ActionDef; spec: ActionSpec; files: FileInfo[] }
   | { name: "resize"; set: FileSet; action: ActionDef; files: FileInfo[] }
+  | { name: "pages"; set: FileSet; action: ActionDef; files: FileInfo[] }
   | {
       name: "running";
       set: FileSet;
@@ -80,6 +82,7 @@ const DEPTH: Record<View["name"], number> = {
   actions: 0,
   options: 1,
   resize: 1,
+  pages: 1,
   running: 2,
   result: 2,
   error: 2,
@@ -91,6 +94,7 @@ const FOOTER: Record<View["name"], string> = {
   actions: "↑↓ navigate · ↵ select · esc close",
   options: "↵ run · esc back",
   resize: "drag the handles or type a size · ↵ resize · esc back",
+  pages: "click pages to pick · shift-click for a range · esc back",
   running: "esc cancel",
   result: "esc close",
   error: "esc back",
@@ -257,7 +261,7 @@ function App() {
   }, [phase, view.name]);
 
   // Fit the window to the content: editors are wider (SPECS §5), height follows the content.
-  const wide = view.name === "resize";
+  const wide = view.name === "resize" || view.name === "pages";
   useLayoutEffect(() => {
     const el = contentRef.current;
     if (!el) return;
@@ -296,7 +300,7 @@ function App() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       const name = viewRef.current.name;
-      if (name === "options" || name === "resize" || name === "error") back();
+      if (name === "options" || name === "resize" || name === "pages" || name === "error") back();
       else if (name === "running") cancel();
       else close();
     };
@@ -319,6 +323,7 @@ function App() {
     setNotice(undefined);
     const files = scope ? set.files.filter((f) => f.kind === scope) : set.files;
     if (action.id === "image_resize") go({ name: "resize", set, action, files });
+    else if (action.id === "pdf_to_images") go({ name: "pages", set, action, files });
     else if (spec.fields.length === 0) void launch({ action, request: spec.toRequest(spec.defaults), files, set });
     else go({ name: "options", set, action, spec, files });
   };
@@ -394,7 +399,7 @@ function App() {
                   onChoose={choose}
                   onRun={run}
                   onBack={back}
-                  onResize={(v, request) => void launch({ action: v.action, request, files: v.files, set: v.set })}
+                  onEditorRun={(v, request) => void launch({ action: v.action, request, files: v.files, set: v.set })}
                   onLaunch={(v, values) =>
                     void launch({ action: v.action, request: v.spec.toRequest(values), files: v.files, set: v.set })
                   }
@@ -423,14 +428,15 @@ interface BodyProps {
   onRun: (set: FileSet) => (action: ActionDef, scope?: InputKind) => void;
   onBack: () => void;
   onLaunch: (view: Extract<View, { name: "options" }>, values: OptionValues) => void;
-  onResize: (view: Extract<View, { name: "resize" }>, request: JobRequest) => void;
+  /** Run a request built by an editor view (resize, PDF pages). */
+  onEditorRun: (view: Extract<View, { name: "resize" | "pages" }>, request: JobRequest) => void;
   onCancel: () => void;
   onRetry: () => void;
   onAutoHide: () => void;
 }
 
 function Body(props: BodyProps) {
-  const { view, hotkey, dragging, onChoose, onRun, onBack, onLaunch, onResize, onCancel, onRetry, onAutoHide } = props;
+  const { view, hotkey, dragging, onChoose, onRun, onBack, onLaunch, onEditorRun, onCancel, onRetry, onAutoHide } = props;
   switch (view.name) {
     case "loading":
       return <LoadingRows />;
@@ -449,7 +455,9 @@ function Body(props: BodyProps) {
         />
       );
     case "resize":
-      return <ResizeEditor files={view.files} onBack={onBack} onRun={(request) => onResize(view, request)} />;
+      return <ResizeEditor files={view.files} onBack={onBack} onRun={(request) => onEditorRun(view, request)} />;
+    case "pages":
+      return <PdfPagesEditor file={view.files[0]} onBack={onBack} onRun={(request) => onEditorRun(view, request)} />;
     case "running":
       return (
         <Running

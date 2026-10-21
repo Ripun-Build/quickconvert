@@ -61,7 +61,8 @@ The selection is only read when Explorer/Finder is the frontmost app at the mome
 | View | Content |
 |---|---|
 | **DropZone** | Dashed rounded area, icon, "Drop files here", "Choose files…" button. |
-| **ActionList** | Header: file chip (thumbnail, name or "N files", total size). Search field "Type an action…". Grouped list: *Suggested*, *Convert*, *Edit*, *Compress*. Each row: icon, label, shortcut number (1–9). |
+| **ActionList** | Header: file chip (thumbnail, name or "N files", total size). Search field "Type an action…". Grouped list: *Suggested*, *Convert*, *Edit*, *Compress*. Each row: icon, label, shortcut number (1–9). **Every action is always listed**: ones that don't fit the selection are greyed out with a short reason ("Needs images", "Needs 2+ PDFs", "Works on one PDF at a time"), can't be chosen, and are skipped by ↑/↓ and 1–9. |
+| **PdfPagesEditor** | Popup widens to 720 px. Page thumbnails (loaded as they scroll into view): click to select, Shift-click for a range; *All* / *None*; the "1-3, 5" field stays in sync both ways and explains mistakes. Format JPG / PNG with a one-line hint each. Image size as three described choices instead of DPI: **Screen** (72 DPI, viewing and sharing), **Standard** (150 DPI, most uses), **Print** (300 DPI, printing), each showing the page's pixel size. |
 | **OptionsSheet** | Back chevron + action title. Only that action's options. Primary button "Convert" / "Compress" / etc. |
 | **Running** | Per-batch progress bar + "3 of 12 · photo_03.jpg". Cancel button (Esc also cancels after confirm-free stop). |
 | **Result** | Green check, output name(s), buttons: Show in folder · Open · Copy path. Auto-hide after 2.5 s unless hovered/focused. |
@@ -89,7 +90,7 @@ Input types: `image` = JPG/JPEG, PNG, WebP, BMP, GIF (first frame), TIFF; `pdf` 
 | id | Label | Input | Output | Options (defaults **bold**) |
 |---|---|---|---|---|
 | `images_to_pdf` | Combine into PDF | 1+ images | 1 PDF | Page size: **Fit to image** (image DPI, else 150 DPI) / A4 / Letter (landscape for wide images) · Margin: **None** / Small (10 mm) · Order: **selection order** (by filename if unknown). JPEGs embedded without re-encoding; EXIF rotation applied. |
-| `pdf_to_images` | PDF to JPG/PNG | 1 PDF | 1 image per page | Format: **JPG** / PNG · Resolution: 72 / **150** / 300 DPI · Pages: **All** / range "1-3,5" |
+| `pdf_to_images` | PDF to JPG/PNG | 1 PDF | 1 image per page | **PdfPagesEditor**. Format: **JPG** / PNG · Size: Screen / **Standard** / Print (72 / 150 / 300 DPI) · Pages: **All** / picked pages or range "1-3,5" |
 | `image_convert` | Convert to… | 1+ images | same count | Format: **JPG** / PNG / WebP (lossy, libwebp) · Quality 1–100 (**85**) for JPG/WebP · Transparent background → **white** (JPG only) |
 | `image_resize` | Resize | 1+ images | same count | **ResizeEditor** (visual). Starts at long edge **1600 px** (or the original if smaller); never upscales. Several images: aspect locked → same percentage for each (each keeps its shape); unlocked → every image becomes exactly W × H. |
 | `image_compress` | Compress | 1+ images | same count | Mode: **Target size (KB)** / Quality slider · Target default **200 KB** |
@@ -107,7 +108,8 @@ Input types: `image` = JPG/JPEG, PNG, WebP, BMP, GIF (first frame), TIFF; `pdf` 
 - All images (2+) → Suggested: Combine into PDF, Compress, Resize.
 - 1 PDF → Suggested: PDF to JPG/PNG, (Phase 2: Compress PDF, Split).
 - 2+ PDFs → Suggested: Merge PDFs.
-- Mixed images + PDFs → show only actions valid for every file; if none, show the message "These files can't be converted together" plus per-type groups.
+- All other actions are still listed under their group, disabled with a reason when they don't fit.
+- Mixed images + PDFs → show only actions valid for every file; if none, show the message "These files can't be converted together" plus per-type groups, then a *Not available* group.
 - Unsupported types → listed in the chip as "2 files not supported" and excluded.
 
 ## 7. Compress-to-target-size algorithm (images)
@@ -186,6 +188,8 @@ HEIC/HEIF in Phase 2.
 - Unsupported: "QuickConvert can't open .xyz files yet."
 - Corrupt: "This file looks damaged and couldn't be read."
 - Password PDF: "This PDF is password-protected."
+- Page range: "This PDF has only 10 pages." / "Write pages like 1-3, 5."
+- Missing PDF engine: "PDF support is missing from this copy of QuickConvert. Please reinstall it."
 - Disk/permission: "Couldn't save in this folder, so the file was saved to Downloads."
 - Hotkey conflict: "Ctrl+Alt+Space is already used by another app. Pick a different shortcut."
 

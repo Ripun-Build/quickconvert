@@ -10,6 +10,7 @@ import type {
   JobProgress,
   JobRequest,
   PopupFilesPayload,
+  PdfPageSize,
   PopupShowPayload,
   Preview,
 } from "./types";
@@ -67,6 +68,13 @@ export const thumbnail = (path: string) => call<string>("thumbnail", { path });
 
 /** Larger preview for editors, plus the image's upright size in px. */
 export const preview = (path: string) => call<Preview>("preview", { path });
+
+/** Size of every page of a PDF, in points. Rejects with a friendly error for locked/damaged PDFs. */
+export const pdfPageSizes = (path: string) => call<PdfPageSize[]>("pdf_page_sizes", { path });
+
+/** JPEG data URLs for the given 1-based pages. */
+export const pdfThumbnails = (path: string, pages: number[]) => call<string[]>("pdf_thumbnails", { path, pages });
+
 
 const DIALOG_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "bmp", "gif", "tif", "tiff", "pdf"];
 

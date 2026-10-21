@@ -132,13 +132,14 @@ Settings → Appearance sets `data-theme="light" | "dark"` on `<html>`, or remov
 | Component | Spec |
 |---|---|
 | **FileChip** | 32 px thumbnail (radius 6, 0.5 px separator border) + name (body-strong, truncated middle: `IMG_20…_0412.jpg`) + size (caption). Multiple files: stacked 3-thumbnail fan (offset 4 px, rotate ±4°) + "12 images · 38 MB". |
-| **ActionRow** | Icon (lucide, 18 px, stroke 1.75) + label + optional sublabel (caption) + Kbd. Height 36 px. |
+| **ActionRow** | Icon (lucide, 18 px, stroke 1.75) + label + optional sublabel (caption) + Kbd. Height 36 px. Disabled: 40 % opacity, no hover/highlight, the reason (caption, tertiary) replaces the Kbd. |
 | **Button** | Primary: `--accent` bg, `--text-on-accent`, height 30 px, radius 7, body-strong. Secondary: `--surface` bg, primary text. Pressed: scale 0.97 + `--accent-pressed`. Disabled: 40% opacity. |
 | **Segmented** | Pill group, `--surface` track, selected segment white (light) / `rgba(255,255,255,0.14)` (dark) with subtle shadow; the thumb slides with a spring (layoutId). |
 | **Slider** | 4 px track, 18 px white knob with shadow, live value in caption on the right (tabular). |
 | **TextField** | 30 px, `--surface` bg, radius 7, focus ring 3 px `--focus-ring`. |
 | **ProgressBar** | 4 px, radius pill, `--accent` fill on `--separator` track; indeterminate shimmer when percent unknown. |
 | **Toast-style result** | Check icon draws in (stroke-dashoffset 280 ms), title "Saved", output name, three secondary buttons. |
+| **PdfPagesEditor** | 720 px wide. Left: page grid (4 columns, `--surface` well, scrolls); selected pages get a 2 px `--accent` ring and a check badge, unselected ones fade to 55 %. Right column 232 px: Pages (All/None chips + range field, `--danger` ring and message when invalid), Format (Segmented + hint), Image size (three radio cards: label, pixel size, one-line description; selected = `--surface-selected` with `--accent` inset ring). |
 | **ResizeEditor** | 720 px wide. Canvas on `--surface`, original size as a dashed `--separator` outline with the image at 15 % behind; live image on top. Handles: `--surface-raised` pills on the right/bottom edges, round corner handle with `--accent` border (keyboard: arrows 1 %, Shift 10 %). W × H label in a `--bg-glass` chip at the corner. Lock = Link/Unlink icon. |
 
 Icons (lucide-react): FileText (PDF), Images, Image, Minimize2 (compress), Scaling (resize), Crop, RotateCw, Combine/Layers (merge), Scissors (split), SlidersHorizontal (options), Settings, Check, AlertTriangle, FolderOpen, Copy.

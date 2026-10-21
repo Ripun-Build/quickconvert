@@ -12,6 +12,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::convert::image::{self as img, OutputFormat, ResizeMode};
 use crate::convert::pdf::{self, Margin, PageSize};
+use crate::convert::pdf_render::{self, PageSelection};
 use crate::errors::AppError;
 use crate::output::{self, Written};
 use crate::popup;
@@ -24,10 +25,23 @@ use crate::popup;
     rename_all_fields = "camelCase"
 )]
 pub enum JobRequest {
-    ImagesToPdf { page_size: PageSize, margin: Margin },
+    ImagesToPdf {
+        page_size: PageSize,
+        margin: Margin,
+    },
     PdfMerge,
-    ImageConvert { format: OutputFormat, quality: u8 },
-    ImageResize { mode: ResizeMode },
+    ImageConvert {
+        format: OutputFormat,
+        quality: u8,
+    },
+    ImageResize {
+        mode: ResizeMode,
+    },
+    PdfToImages {
+        format: OutputFormat,
+        dpi: u16,
+        pages: PageSelection,
+    },
 }
 
 #[derive(Clone, Serialize)]
@@ -114,6 +128,7 @@ pub fn start(
     let id = job_id.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let fallback = app.path().download_dir().ok();
+        let pdfium_dirs = pdfium_dirs(&app);
         let emit = |index: usize, count: usize, name: &str, percent: f64| {
             let progress = Progress {
                 job_id: id.clone(),
@@ -124,7 +139,11 @@ pub fn start(
             };
             let _ = app.emit_to(popup::LABEL, "job://progress", progress);
         };
-        let done = run(&id, &request, &paths, fallback.as_deref(), &cancel, &emit);
+        let places = Places {
+            fallback: fallback.as_deref(),
+            pdfium_dirs: &pdfium_dirs,
+        };
+        let done = run(&id, &request, &paths, &places, &cancel, &emit);
 
         let jobs = app.state::<Jobs>();
         if let Ok(mut outputs) = jobs.outputs.lock() {
@@ -143,15 +162,37 @@ pub fn start(
 
 type Emit<'a> = &'a dyn Fn(usize, usize, &str, f64);
 
+/// Where a job may write and find bundled components.
+pub struct Places<'a> {
+    /// Used when an input's folder isn't writable (Downloads).
+    pub fallback: Option<&'a Path>,
+    /// Folders that may contain the pdfium library.
+    pub pdfium_dirs: &'a [PathBuf],
+}
+
+/// Bundled resources first; in dev builds also the source tree (`scripts/fetch-pdfium.sh`).
+pub fn pdfium_dirs(app: &AppHandle) -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = app
+        .path()
+        .resource_dir()
+        .map(|dir| vec![dir.join("pdfium")])
+        .unwrap_or_default();
+    if cfg!(debug_assertions) {
+        dirs.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/pdfium"));
+    }
+    dirs
+}
+
 /// Run a job to completion. Batches continue past individual failures.
 pub fn run(
     job_id: &str,
     request: &JobRequest,
     paths: &[PathBuf],
-    fallback: Option<&Path>,
+    places: &Places<'_>,
     cancel: &AtomicBool,
     emit: Emit<'_>,
 ) -> JobDone {
+    let fallback = places.fallback;
     let mut done = JobDone {
         job_id: job_id.to_string(),
         outputs: Vec::new(),
@@ -206,6 +247,36 @@ pub fn run(
                 })
             })();
             record(&mut done, &paths[current.get()], result);
+        }
+        // One PDF → a folder of page images.
+        JobRequest::PdfToImages { format, dpi, pages } => {
+            let pdf = &paths[0];
+            let mut step = |i: usize, total: usize, page: u32| {
+                if is_cancelled() {
+                    return Err(AppError::Cancelled);
+                }
+                emit(i, total, &format!("Page {page}"), percent(i, total));
+                Ok(())
+            };
+            let mut written = Vec::new();
+            let result = pdf_render::pdfium(places.pdfium_dirs).and_then(|lib| {
+                pdf_render::pdf_to_images(
+                    lib,
+                    pdf,
+                    *format,
+                    *dpi,
+                    pages,
+                    fallback,
+                    &mut step,
+                    &mut written,
+                )
+            });
+            for file in written {
+                record(&mut done, pdf, Ok(file));
+            }
+            if let Err(err) = result {
+                record(&mut done, pdf, Err(err));
+            }
         }
         // One output per input.
         JobRequest::ImageConvert { .. } | JobRequest::ImageResize { .. } => {
@@ -298,12 +369,21 @@ mod tests {
         paths.iter().map(|p| fs::read(p).unwrap()).collect()
     }
 
+    fn places_for_tests() -> Vec<PathBuf> {
+        vec![PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/pdfium")]
+    }
+
     fn run_quiet(request: JobRequest, paths: &[PathBuf]) -> JobDone {
+        let dirs = places_for_tests();
+        let places = Places {
+            fallback: None,
+            pdfium_dirs: &dirs,
+        };
         run(
             "t",
             &request,
             paths,
-            None,
+            &places,
             &AtomicBool::new(false),
             &|_, _, _, _| {},
         )
@@ -362,7 +442,20 @@ mod tests {
         let merged = lopdf::Document::load(&merge.outputs[0]).unwrap();
         assert_eq!(merged.get_pages().len(), 6);
 
-        for done in [&convert, &resize, &pdf, &merge] {
+        let pages = run_quiet(
+            JobRequest::PdfToImages {
+                format: OutputFormat::Png,
+                dpi: 72,
+                pages: PageSelection::All,
+            },
+            &merged_inputs[..1],
+        );
+        assert_eq!(
+            names(&pages),
+            ["photo +2-01.png", "photo +2-02.png", "photo +2-03.png"]
+        );
+
+        for done in [&convert, &resize, &pdf, &merge, &pages] {
             assert!(done.failures.is_empty(), "{:?}", done.failures);
             assert!(!done.cancelled);
         }
@@ -428,7 +521,12 @@ mod tests {
         let request = JobRequest::ImageResize {
             mode: ResizeMode::LongEdge { px: 10 },
         };
-        let done = run("t", &request, &inputs, None, &cancel, &emit);
+        let dirs = places_for_tests();
+        let places = Places {
+            fallback: None,
+            pdfium_dirs: &dirs,
+        };
+        let done = run("t", &request, &inputs, &places, &cancel, &emit);
         assert!(done.cancelled);
         assert_eq!(done.outputs.len(), 2, "files already started finish");
         assert_eq!(*seen.lock().unwrap(), [(0, 3), (1, 3)]);
@@ -459,5 +557,19 @@ mod tests {
         );
         let r: JobRequest = serde_json::from_str(r#"{"action":"pdf_merge"}"#).unwrap();
         assert_eq!(r, JobRequest::PdfMerge);
+        let r: JobRequest = serde_json::from_str(
+            r#"{"action":"pdf_to_images","format":"jpg","dpi":150,"pages":{"kind":"range","spec":"1-3,5"}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            r,
+            JobRequest::PdfToImages {
+                format: OutputFormat::Jpg,
+                dpi: 150,
+                pages: PageSelection::Range {
+                    spec: "1-3,5".into()
+                }
+            }
+        );
     }
 }

@@ -50,6 +50,8 @@ pub fn run() {
             commands::describe_files,
             commands::thumbnail,
             commands::preview,
+            commands::pdf_page_sizes,
+            commands::pdf_thumbnails,
             commands::start_job,
             commands::cancel_job,
             commands::open_output,

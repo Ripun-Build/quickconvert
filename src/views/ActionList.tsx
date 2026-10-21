@@ -22,7 +22,8 @@ export function ActionList({ set, onRun }: Props) {
   const menu = useMemo(() => buildMenu(set.files.map((f) => f.kind)), [set]);
   const filtered = useMemo(() => filterMenu(menu, query), [menu, query]);
   const flat = useMemo(() => flatActions(filtered), [filtered]);
-  const scopeOf = (action: ActionDef) => filtered.sections.find((s) => s.actions.includes(action))?.scope;
+  const scopeOf = (action: ActionDef) =>
+    filtered.sections.find((s) => s.items.some((i) => i.enabled && i.action === action))?.scope;
 
   useEffect(() => setHighlight(0), [query, set]);
 
@@ -95,13 +96,23 @@ export function ActionList({ set, onRun }: Props) {
         {menu.incompatible && !query && (
           <p className="type-caption px-[10px] pb-1 text-secondary">These files can't be converted together.</p>
         )}
-        {flat.length === 0 && <p className="type-body px-[10px] py-2 text-secondary">No matching actions</p>}
+        {filtered.sections.length === 0 && <p className="type-body px-[10px] py-2 text-secondary">No matching actions</p>}
         {filtered.sections.map((section) => (
           <div key={section.title} role="group" aria-label={section.title}>
             <p className="type-caption px-[10px] pt-2 pb-1 tracking-[0.04em] text-tertiary uppercase">
               {section.title}
             </p>
-            {section.actions.map((action) => {
+            {section.items.map(({ action, enabled, reason }) => {
+              if (!enabled) {
+                return (
+                  <ActionRow
+                    key={`${section.title}-${action.id}`}
+                    action={action}
+                    highlighted={false}
+                    disabledReason={reason}
+                  />
+                );
+              }
               index++;
               const i = index;
               return (

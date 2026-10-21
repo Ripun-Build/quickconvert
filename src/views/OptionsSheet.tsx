@@ -18,9 +18,11 @@ export function OptionsSheet({ action, spec, fileCount, onBack, onRun }: Props) 
   const [values, setValues] = useState<OptionValues>(spec.defaults);
   const set = (key: string, value: OptionValues[string]) => setValues((v) => ({ ...v, [key]: value }));
   const visible = spec.fields.filter((f) => !f.visible || f.visible(values));
+  const invalid = visible.some((f) => f.kind === "text" && !f.valid(String(values[f.key] ?? "")));
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (invalid) return;
     // Empty number fields fall back to their defaults.
     const clean = Object.fromEntries(
       Object.entries(values).map(([k, v]) => [k, typeof v === "number" && Number.isNaN(v) ? spec.defaults[k] : v]),
@@ -49,7 +51,7 @@ export function OptionsSheet({ action, spec, fileCount, onBack, onRun }: Props) 
         </div>
       ))}
 
-      <Button type="submit" variant="primary" autoFocus className="mt-1 w-full">
+      <Button type="submit" variant="primary" autoFocus disabled={invalid} className="mt-1 w-full">
         {spec.submit}
         {fileCount > 1 && <span className="opacity-70">· {fileCount} files</span>}
       </Button>
@@ -94,5 +96,25 @@ function FieldControl({
       );
     case "toggle":
       return <Toggle label={field.label} checked={Boolean(value)} onChange={onChange} />;
+    case "text": {
+      const text = String(value ?? "");
+      const bad = text.trim() !== "" && !field.valid(text);
+      return (
+        <div className="flex flex-col gap-1">
+          <input
+            autoFocus
+            value={text}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={field.placeholder}
+            aria-label={field.label}
+            aria-invalid={bad}
+            className={`type-body h-[30px] rounded-control bg-surface px-2 text-primary tabular-nums outline-none placeholder:text-tertiary focus:ring-[3px] ${
+              bad ? "ring-1 ring-danger focus:ring-danger" : "focus:ring-focus-ring"
+            }`}
+          />
+          <span className={`type-caption ${bad ? "text-danger" : "text-tertiary"}`}>{field.hint}</span>
+        </div>
+      );
+    }
   }
 }

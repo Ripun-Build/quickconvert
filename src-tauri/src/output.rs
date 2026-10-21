@@ -92,6 +92,54 @@ where
     }
 }
 
+/// Create a new folder `name` in `dir` (or `fallback`), numbering it `name (1)`, `name (2)`… if
+/// taken. Returns the folder and whether the fallback was used.
+pub fn create_folder(
+    dir: &Path,
+    fallback: Option<&Path>,
+    name: &str,
+) -> Result<(PathBuf, bool), AppError> {
+    match create_numbered_dir(dir, name) {
+        Ok(path) => Ok((path, false)),
+        Err(err) if is_not_writable(&err) => match fallback {
+            Some(fallback) => Ok((create_numbered_dir(fallback, name)?, true)),
+            None => Err(err.into()),
+        },
+        Err(err) => Err(err.into()),
+    }
+}
+
+fn create_numbered_dir(dir: &Path, name: &str) -> io::Result<PathBuf> {
+    for n in 0..10_000 {
+        let candidate = if n == 0 {
+            name.to_string()
+        } else {
+            format!("{name} ({n})")
+        };
+        let path = dir.join(candidate);
+        match fs::create_dir(&path) {
+            Ok(()) => return Ok(path),
+            Err(err) if err.kind() == ErrorKind::AlreadyExists => continue,
+            Err(err) => return Err(err),
+        }
+    }
+    Err(io::Error::new(
+        ErrorKind::AlreadyExists,
+        "no free folder name",
+    ))
+}
+
+/// `report.pdf` → `report pages`.
+pub fn pages_folder_name(pdf: &Path) -> String {
+    format!("{} pages", stem(pdf))
+}
+
+/// `report`, page 3 of 120 → `report-003.jpg` (zero-padded to the page count, at least 2 digits).
+pub fn page_file_name(pdf: &Path, page: u32, page_count: u32, ext: &str) -> String {
+    let width = page_count.to_string().len().max(2);
+    format!("{}-{page:0width$}.{ext}", stem(pdf))
+}
+
 /// Create an empty file under the first free name; it holds the name until the rename.
 fn reserve(dir: &Path, name: &str) -> io::Result<PathBuf> {
     for n in 0..10_000 {
@@ -232,5 +280,25 @@ mod tests {
         assert!(names(&dir).is_empty());
         fs::remove_dir_all(dir).unwrap();
         fs::remove_dir_all(fallback).unwrap();
+    }
+
+    #[test]
+    fn page_names_are_zero_padded_to_the_page_count() {
+        let pdf = Path::new("/x/report.pdf");
+        assert_eq!(pages_folder_name(pdf), "report pages");
+        assert_eq!(page_file_name(pdf, 3, 9, "jpg"), "report-03.jpg");
+        assert_eq!(page_file_name(pdf, 3, 120, "png"), "report-003.png");
+        assert_eq!(page_file_name(pdf, 1, 1, "jpg"), "report-01.jpg");
+    }
+
+    #[test]
+    fn folders_get_numbered_instead_of_reused() {
+        let dir = temp_dir("folders");
+        let (a, _) = create_folder(&dir, None, "v1.2 pages").unwrap();
+        let (b, fell_back) = create_folder(&dir, None, "v1.2 pages").unwrap();
+        assert_eq!(a, dir.join("v1.2 pages"));
+        assert_eq!(b, dir.join("v1.2 pages (1)"));
+        assert!(!fell_back);
+        fs::remove_dir_all(dir).unwrap();
     }
 }

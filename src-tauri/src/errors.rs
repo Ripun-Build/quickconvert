@@ -22,6 +22,13 @@ pub enum AppError {
     #[error("Cancelled.")]
     Cancelled,
 
+    /// Something the user typed can't be used; `message` says why in plain language.
+    #[error("{message}")]
+    InvalidInput { message: String },
+
+    #[error("PDF support is missing from this copy of QuickConvert. Please reinstall it.")]
+    MissingComponent { detail: String },
+
     #[error("Something went wrong. Please try again.")]
     Internal { detail: String },
 }
@@ -35,12 +42,20 @@ impl AppError {
             AppError::Corrupt { .. } => "corrupt",
             AppError::PasswordProtected => "password_protected",
             AppError::Cancelled => "cancelled",
+            AppError::InvalidInput { .. } => "invalid_input",
+            AppError::MissingComponent { .. } => "missing_component",
             AppError::Internal { .. } => "internal",
         }
     }
 }
 
 impl AppError {
+    pub fn invalid(message: impl Into<String>) -> Self {
+        AppError::InvalidInput {
+            message: message.into(),
+        }
+    }
+
     pub fn internal(detail: impl Into<String>) -> Self {
         AppError::Internal {
             detail: detail.into(),

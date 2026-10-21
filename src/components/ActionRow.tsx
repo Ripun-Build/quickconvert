@@ -15,24 +15,29 @@ const ICONS: Record<ActionId, LucideIcon> = {
 };
 
 interface Props {
-  id: string;
+  id?: string;
   action: ActionDef;
   shortcut?: number;
   highlighted: boolean;
-  onHover: () => void;
-  onSelect: () => void;
+  /** Shown instead of the shortcut when the action can't run on the selection. */
+  disabledReason?: string;
+  onHover?: () => void;
+  onSelect?: () => void;
 }
 
-export function ActionRow({ id, action, shortcut, highlighted, onHover, onSelect }: Props) {
+export function ActionRow({ id, action, shortcut, highlighted, disabledReason, onHover, onSelect }: Props) {
   const Icon = ICONS[action.id];
+  const disabled = disabledReason !== undefined;
   return (
     <div
       id={id}
       role="option"
       aria-selected={highlighted}
-      onMouseMove={onHover}
-      onClick={onSelect}
-      className="relative flex h-9 cursor-default items-center gap-3 rounded-row px-[10px]"
+      aria-disabled={disabled}
+      title={disabledReason}
+      onMouseMove={disabled ? undefined : onHover}
+      onClick={disabled ? undefined : onSelect}
+      className={`relative flex h-9 cursor-default items-center gap-3 rounded-row px-[10px] ${disabled ? "opacity-40" : ""}`}
     >
       {highlighted && (
         <motion.div
@@ -47,10 +52,14 @@ export function ActionRow({ id, action, shortcut, highlighted, onHover, onSelect
         className={`relative shrink-0 ${highlighted ? "text-accent" : "text-secondary"}`}
       />
       <span className="type-body relative flex-1 truncate text-primary">{action.label}</span>
-      {shortcut !== undefined && (
-        <span className="relative">
-          <Kbd>{shortcut}</Kbd>
-        </span>
+      {disabled ? (
+        <span className="type-caption relative shrink-0 text-tertiary">{disabledReason}</span>
+      ) : (
+        shortcut !== undefined && (
+          <span className="relative">
+            <Kbd>{shortcut}</Kbd>
+          </span>
+        )
       )}
     </div>
   );

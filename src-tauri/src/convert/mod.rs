@@ -4,3 +4,4 @@ pub mod compress;
 pub mod crop;
 pub mod image;
 pub mod pdf;
+pub mod pdf_render;

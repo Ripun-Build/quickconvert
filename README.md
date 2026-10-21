@@ -18,6 +18,7 @@ Select files → press a hotkey → convert, compress or crop them from a small 
 
 ```bash
 npm install
+sh scripts/fetch-pdfium.sh # once: PDF engine (pinned version, checksum-verified)
 npm run tauri dev          # run the app
 npm run tauri build        # production bundle
 ```
