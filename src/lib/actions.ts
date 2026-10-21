@@ -269,7 +269,7 @@ const num = (v: OptionValues[string]) => Number(v);
 /** Page list like "1-3, 5". Syntax only; Rust checks it against the page count. */
 export const PAGE_RANGE = /^\s*\d+\s*(-\s*\d+\s*)?(,\s*\d+\s*(-\s*\d+\s*)?)*,?\s*$/;
 
-/** Actions that can run. Compress and presets arrive in M5. */
+/** Actions that can run. Resize, PDF → images, Compress and presets use their own editor views. */
 export const ACTION_SPECS: Partial<Record<ActionId, ActionSpec>> = {
   images_to_pdf: {
     submit: "Create PDF",
@@ -300,6 +300,21 @@ export const ACTION_SPECS: Partial<Record<ActionId, ActionSpec>> = {
       pageSize: str(v.pageSize) as "fit" | "a4" | "letter",
       margin: str(v.margin) as "none" | "small",
     }),
+  },
+  image_compress: {
+    submit: "Compress",
+    defaults: {},
+    fields: [],
+    toRequest: () => ({ action: "image_compress", target: { kind: "size", maxKb: 200 } }),
+  },
+  apply_preset: {
+    submit: "Apply preset",
+    defaults: {},
+    fields: [],
+    // The preset view supplies the chosen preset.
+    toRequest: () => {
+      throw new Error("apply_preset needs a preset");
+    },
   },
   pdf_merge: {
     submit: "Merge",

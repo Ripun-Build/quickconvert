@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Copy, FolderOpen } from "lucide-react";
 import { Button } from "../components/Button";
-import { truncateMiddle } from "../lib/format";
+import { describeOutput, formatBytes, truncateMiddle } from "../lib/format";
 import { openOutput, revealOutput } from "../lib/ipc";
 import type { JobDone } from "../lib/types";
 
@@ -21,8 +21,9 @@ function sharedFolder(outputs: string[]): string {
 export function Result({ done, onAutoHide }: { done: JobDone; onAutoHide: () => void }) {
   const [engaged, setEngaged] = useState(false);
   const [copied, setCopied] = useState(false);
-  const outputs = done.outputs;
+  const outputs = done.outputs.map((o) => o.path);
   const single = outputs.length === 1;
+  const total = done.outputs.reduce((sum, o) => sum + o.bytes, 0);
 
   useEffect(() => {
     // Stay open while the user is pointing at it, or when there's a note to read.
@@ -55,6 +56,9 @@ export function Result({ done, onAutoHide }: { done: JobDone; onAutoHide: () => 
           <h2 className="type-title text-primary">Saved</h2>
           <p className="type-caption truncate text-secondary" title={outputs.join("\n")}>
             {single ? truncateMiddle(baseName(outputs[0]), 40) : `${outputs.length} files${sharedFolder(outputs)}`}
+          </p>
+          <p className="type-caption truncate text-tertiary tabular-nums">
+            {single ? describeOutput(done.outputs[0]) : `${formatBytes(total)} in total`}
           </p>
         </div>
       </div>

@@ -44,7 +44,8 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "resources/pdfium/": "pdfium/"
+      "resources/pdfium/": "pdfium/",
+      "resources/presets.json": "presets.json"
     }
   }
 }

@@ -7,14 +7,14 @@ use image::codecs::jpeg::JpegEncoder;
 use image::codecs::png::PngEncoder;
 use image::imageops::FilterType;
 use image::{DynamicImage, ImageDecoder, ImageEncoder, ImageFormat, ImageReader, Rgb, RgbImage};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::errors::AppError;
 
 /// Quality used when an operation keeps the input format (resize).
 pub const KEEP_FORMAT_QUALITY: u8 = 90;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum OutputFormat {
     Jpg,
@@ -155,7 +155,13 @@ pub fn encode_like<W: Write + Seek>(
 
 /// Add an ICCP chunk to a simple-format WebP (libwebp's output), switching it to the extended
 /// (VP8X) format as the WebP container spec requires.
-fn webp_with_icc(webp: &[u8], icc: &[u8], width: u32, height: u32, has_alpha: bool) -> Vec<u8> {
+pub(crate) fn webp_with_icc(
+    webp: &[u8],
+    icc: &[u8],
+    width: u32,
+    height: u32,
+    has_alpha: bool,
+) -> Vec<u8> {
     const ICC_FLAG: u8 = 0x20;
     const ALPHA_FLAG: u8 = 0x10;
     let Some(body) = webp

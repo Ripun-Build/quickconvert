@@ -68,6 +68,8 @@ The selection is only read when Explorer/Finder is the frontmost app at the mome
 | **Result** | Green check, output name(s), buttons: Show in folder · Open · Copy path. Auto-hide after 2.5 s unless hovered/focused. |
 | **ErrorView** | Plain-language message, per-file failure list for batches ("10 done, 2 failed — Show details"), Retry / Back. |
 | **ResizeEditor** | Popup widens to 720 px. Image preview inside a dashed outline of the original size; drag the corner or right/bottom edge to resize, live W × H label follows the corner. Width/Height fields stay in sync both ways; aspect lock (on); 25/50/75/100 % shortcuts. Never larger than the original. |
+| **CompressView** | Target size (chips 20 / 50 / 100 / 200 / 500 KB / 1 MB + "Other" KB field) or Quality (slider; PNG explains it has no quality). A live card shows the real result for the first image: "4.1 MB → 48 KB · 1600×1200 · quality 78". |
+| **PresetView** | Preset cards (label + what it does, e.g. "200 × 230 px · 20–50 KB · JPG · 200 DPI"), the preset's note, and the same live result card. |
 | **CropEditor** | Phase 2. Image preview, draggable crop box, aspect presets (Free, 1:1, 4:3, 3:4, 16:9, 35×45 mm passport), rotate 90°. |
 | **PageTray** | Phase 2. Thumbnails of images/pages; drag to reorder, rotate, remove; then "Create PDF". |
 
@@ -93,9 +95,9 @@ Input types: `image` = JPG/JPEG, PNG, WebP, BMP, GIF (first frame), TIFF; `pdf` 
 | `pdf_to_images` | PDF to JPG/PNG | 1 PDF | 1 image per page | **PdfPagesEditor**. Format: **JPG** / PNG · Size: Screen / **Standard** / Print (72 / 150 / 300 DPI) · Pages: **All** / picked pages or range "1-3,5" |
 | `image_convert` | Convert to… | 1+ images | same count | Format: **JPG** / PNG / WebP (lossy, libwebp) · Quality 1–100 (**85**) for JPG/WebP · Transparent background → **white** (JPG only) |
 | `image_resize` | Resize | 1+ images | same count | **ResizeEditor** (visual). Starts at long edge **1600 px** (or the original if smaller); never upscales. Several images: aspect locked → same percentage for each (each keeps its shape); unlocked → every image becomes exactly W × H. |
-| `image_compress` | Compress | 1+ images | same count | Mode: **Target size (KB)** / Quality slider · Target default **200 KB** |
+| `image_compress` | Compress | 1+ images | same count | **CompressView**. Mode: **Target size (KB)** / Quality slider (default 75) · Target default **200 KB**. Keeps the format: JPG → JPG, WebP → WebP (quality), PNG → PNG (strongest lossless compression; size targets reduce pixels); BMP / TIFF / GIF → PNG. Colour profile kept, EXIF/GPS dropped. |
 | `pdf_merge` | Merge PDFs | 2+ PDFs | 1 PDF | Order: **selection order** |
-| `apply_preset` | Apply preset… | 1+ images | same count | Pick from presets (§8) |
+| `apply_preset` | Apply preset… | 1+ images | same count | **PresetView**. Pick from presets (§8); output in the preset's format, named `photo-<preset id>.jpg`. |
 
 ### Phase 2
 `pdf_split` (every page / ranges) · `pdf_compress` (re-encode embedded images at lower quality/DPI) · `pdf_rotate` · `image_crop` (CropEditor) · `image_rotate` · `heic_to_jpg` (libheif, LGPL, dynamic) · `strip_metadata` (remove EXIF/GPS) · PageTray for `images_to_pdf`.
@@ -117,14 +119,15 @@ Input types: `image` = JPG/JPEG, PNG, WebP, BMP, GIF (first frame), TIFF; `pdf` 
 Input: image, target bytes `T`, optional exact dimensions (from preset).
 1. If preset has dimensions, resize first (Lanczos3), cropping centre-weighted to the aspect if needed.
 2. Binary search JPEG quality q in [10, 95] (max 8 iterations) for the largest q with size ≤ `T`.
-3. If even q = 10 is > `T`, downscale by 0.85 and repeat step 2 (max 6 rounds; never go below preset min dimensions).
+3. If even q = 10 is > `T`, shrink and repeat step 2: first jump to ≈ √(T / size at q 10) × 0.95 (file size grows with pixel count), then up to 6 more rounds of × 0.85. Never below 64 px on the long edge; presets with exact width × height never shrink. PNG has no quality, so only steps 3–6 apply.
 4. If a preset has a **minimum** size (e.g. 20–50 KB) and output is below it, increase quality toward 95.
 5. Report final size, dimensions and quality in the Result view (e.g. "48 KB · 200×230 · quality 78").
+   - "KB" is ambiguous (1000 or 1024 bytes), so maximums are met as `max × 1000` bytes and minimums as `min × 1024`: the file passes either reading.
 6. If the target can't be reached, fail that file with: "Couldn't get this below 50 KB without going under the minimum size."
 
 ## 8. Presets
 
-Stored in `resources/presets.json` (shipped) and merged with user presets in the app config dir. Schema:
+Stored in `resources/presets.json` (shipped) and merged with user presets in `presets.json` in the app config dir (same `{ "presets": [...] }` format; a user preset with the same `id` replaces the shipped one; an unreadable file is ignored). Width + height resize and centre-crop to fill; `aspect` centre-crops; `longEdge` never upscales. Schema:
 
 ```jsonc
 {
@@ -189,6 +192,7 @@ HEIC/HEIF in Phase 2.
 - Corrupt: "This file looks damaged and couldn't be read."
 - Password PDF: "This PDF is password-protected."
 - Page range: "This PDF has only 10 pages." / "Write pages like 1-3, 5."
+- Size target: "Couldn't get this below 20 KB without making it too small." / "Couldn't get this above 10 KB at 140×60."
 - Missing PDF engine: "PDF support is missing from this copy of QuickConvert. Please reinstall it."
 - Disk/permission: "Couldn't save in this folder, so the file was saved to Downloads."
 - Hotkey conflict: "Ctrl+Alt+Space is already used by another app. Pick a different shortcut."

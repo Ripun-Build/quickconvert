@@ -5,6 +5,7 @@ pub mod files;
 pub mod jobs;
 pub mod output;
 pub mod popup;
+pub mod presets;
 pub mod selection;
 pub mod settings;
 
@@ -52,6 +53,8 @@ pub fn run() {
             commands::preview,
             commands::pdf_page_sizes,
             commands::pdf_thumbnails,
+            commands::list_presets,
+            commands::estimate_output,
             commands::start_job,
             commands::cancel_job,
             commands::open_output,

@@ -5,6 +5,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
 import type {
   AppError,
+  Estimate,
   FileSet,
   JobDone,
   JobProgress,
@@ -12,6 +13,7 @@ import type {
   PopupFilesPayload,
   PdfPageSize,
   PopupShowPayload,
+  Preset,
   Preview,
 } from "./types";
 
@@ -114,6 +116,12 @@ export const onJobDone = (handler: (done: JobDone) => void): Promise<UnlistenFn>
 
 /** Open a file written by a job in its default app. */
 export const openOutput = (path: string) => call<void>("open_output", { path });
+
+/** Shipped presets merged with the user's own. */
+export const listPresets = () => call<Preset[]>("list_presets");
+
+/** What Compress / Apply preset would produce for one image, without writing anything. */
+export const estimateOutput = (path: string, request: JobRequest) => call<Estimate>("estimate_output", { path, request });
 
 /** Show a file written by a job in Finder/Explorer. */
 export const revealOutput = (path: string) => call<void>("reveal_output", { path });

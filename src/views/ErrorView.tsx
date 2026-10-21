@@ -80,7 +80,7 @@ export function ErrorView({ done, onRetry, onBack }: Props) {
           Back
         </Button>
         {saved > 0 && (
-          <Button className="flex-1" onClick={() => void revealOutput(done.outputs[0]).catch(() => {})}>
+          <Button className="flex-1" onClick={() => void revealOutput(done.outputs[0].path).catch(() => {})}>
             Show in folder
           </Button>
         )}

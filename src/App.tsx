@@ -27,7 +27,9 @@ import { ActionList } from "./views/ActionList";
 import { DropZone, type DropZoneHint } from "./views/DropZone";
 import { ErrorView } from "./views/ErrorView";
 import { OptionsSheet } from "./views/OptionsSheet";
+import { CompressView } from "./views/CompressView";
 import { PdfPagesEditor } from "./views/PdfPagesEditor";
+import { PresetView } from "./views/PresetView";
 import { ResizeEditor } from "./views/ResizeEditor";
 import { Result } from "./views/Result";
 import { Running } from "./views/Running";
@@ -62,6 +64,8 @@ type View =
   | { name: "options"; set: FileSet; action: ActionDef; spec: ActionSpec; files: FileInfo[] }
   | { name: "resize"; set: FileSet; action: ActionDef; files: FileInfo[] }
   | { name: "pages"; set: FileSet; action: ActionDef; files: FileInfo[] }
+  | { name: "compress"; set: FileSet; action: ActionDef; files: FileInfo[] }
+  | { name: "preset"; set: FileSet; action: ActionDef; files: FileInfo[] }
   | {
       name: "running";
       set: FileSet;
@@ -83,6 +87,8 @@ const DEPTH: Record<View["name"], number> = {
   options: 1,
   resize: 1,
   pages: 1,
+  compress: 1,
+  preset: 1,
   running: 2,
   result: 2,
   error: 2,
@@ -95,6 +101,8 @@ const FOOTER: Record<View["name"], string> = {
   options: "↵ run · esc back",
   resize: "drag the handles or type a size · ↵ resize · esc back",
   pages: "click pages to pick · shift-click for a range · esc back",
+  compress: "↵ compress · esc back",
+  preset: "↵ apply · esc back",
   running: "esc cancel",
   result: "esc close",
   error: "esc back",
@@ -300,7 +308,7 @@ function App() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       const name = viewRef.current.name;
-      if (name === "options" || name === "resize" || name === "pages" || name === "error") back();
+      if (["options", "resize", "pages", "compress", "preset", "error"].includes(name)) back();
       else if (name === "running") cancel();
       else close();
     };
@@ -324,6 +332,8 @@ function App() {
     const files = scope ? set.files.filter((f) => f.kind === scope) : set.files;
     if (action.id === "image_resize") go({ name: "resize", set, action, files });
     else if (action.id === "pdf_to_images") go({ name: "pages", set, action, files });
+    else if (action.id === "image_compress") go({ name: "compress", set, action, files });
+    else if (action.id === "apply_preset") go({ name: "preset", set, action, files });
     else if (spec.fields.length === 0) void launch({ action, request: spec.toRequest(spec.defaults), files, set });
     else go({ name: "options", set, action, spec, files });
   };
@@ -334,7 +344,7 @@ function App() {
     if (!job || v.name !== "error") return;
     // Per-file actions retry only the files that failed; combined outputs retry everything.
     const failed = new Set(v.done.failures.map((f) => f.name));
-    const perFile = job.request.action === "image_convert" || job.request.action === "image_resize";
+    const perFile = ["image_convert", "image_resize", "image_compress", "apply_preset"].includes(job.request.action);
     const files = perFile ? job.files.filter((f) => failed.has(f.name)) : job.files;
     void launch({ ...job, files: files.length > 0 ? files : job.files });
   };
@@ -429,7 +439,7 @@ interface BodyProps {
   onBack: () => void;
   onLaunch: (view: Extract<View, { name: "options" }>, values: OptionValues) => void;
   /** Run a request built by an editor view (resize, PDF pages). */
-  onEditorRun: (view: Extract<View, { name: "resize" | "pages" }>, request: JobRequest) => void;
+  onEditorRun: (view: Extract<View, { name: "resize" | "pages" | "compress" | "preset" }>, request: JobRequest) => void;
   onCancel: () => void;
   onRetry: () => void;
   onAutoHide: () => void;
@@ -456,6 +466,10 @@ function Body(props: BodyProps) {
       );
     case "resize":
       return <ResizeEditor files={view.files} onBack={onBack} onRun={(request) => onEditorRun(view, request)} />;
+    case "compress":
+      return <CompressView files={view.files} onBack={onBack} onRun={(request) => onEditorRun(view, request)} />;
+    case "preset":
+      return <PresetView files={view.files} onBack={onBack} onRun={(request) => onEditorRun(view, request)} />;
     case "pages":
       return <PdfPagesEditor file={view.files[0]} onBack={onBack} onRun={(request) => onEditorRun(view, request)} />;
     case "running":

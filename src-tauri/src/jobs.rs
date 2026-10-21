@@ -3,6 +3,7 @@
 
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -10,6 +11,7 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 
+use crate::convert::compress::{self, CompressTarget, Preset};
 use crate::convert::image::{self as img, OutputFormat, ResizeMode};
 use crate::convert::pdf::{self, Margin, PageSize};
 use crate::convert::pdf_render::{self, PageSelection};
@@ -42,6 +44,12 @@ pub enum JobRequest {
         dpi: u16,
         pages: PageSelection,
     },
+    ImageCompress {
+        target: CompressTarget,
+    },
+    ApplyPreset {
+        preset: Preset,
+    },
 }
 
 #[derive(Clone, Serialize)]
@@ -61,11 +69,32 @@ pub struct Failure {
     pub error: AppError,
 }
 
+/// What an image output ended up as (shown in the Result view: "48 KB · 200×230 · quality 78").
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Detail {
+    pub width: u32,
+    pub height: u32,
+    pub quality: Option<u8>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OutputFile {
+    pub path: String,
+    pub bytes: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub width: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub height: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quality: Option<u8>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JobDone {
     pub job_id: String,
-    pub outputs: Vec<String>,
+    pub outputs: Vec<OutputFile>,
     pub failures: Vec<Failure>,
     /// Some output went to Downloads because the input's folder wasn't writable.
     pub saved_to_fallback: bool,
@@ -147,7 +176,7 @@ pub fn start(
 
         let jobs = app.state::<Jobs>();
         if let Ok(mut outputs) = jobs.outputs.lock() {
-            outputs.extend(done.outputs.iter().map(PathBuf::from));
+            outputs.extend(done.outputs.iter().map(|o| PathBuf::from(&o.path)));
         }
         if let Ok(mut cancels) = jobs.cancels.lock() {
             cancels.remove(&id);
@@ -202,11 +231,21 @@ pub fn run(
     };
     let count = paths.len();
     let is_cancelled = || cancel.load(Ordering::Relaxed);
-    let record = |done: &mut JobDone, path: &Path, result: Result<Written, AppError>| match result {
-        Ok(written) => {
+    let record = |done: &mut JobDone,
+                  path: &Path,
+                  result: Result<(Written, Option<Detail>), AppError>| match result
+    {
+        Ok((written, detail)) => {
             done.saved_to_fallback |= written.fell_back;
-            done.outputs
-                .push(written.path.to_string_lossy().into_owned());
+            done.outputs.push(OutputFile {
+                bytes: std::fs::metadata(&written.path)
+                    .map(|m| m.len())
+                    .unwrap_or(0),
+                path: written.path.to_string_lossy().into_owned(),
+                width: detail.map(|d| d.width),
+                height: detail.map(|d| d.height),
+                quality: detail.and_then(|d| d.quality),
+            });
         }
         Err(AppError::Cancelled) => done.cancelled = true,
         Err(error) => done.failures.push(Failure {
@@ -246,7 +285,7 @@ pub fn run(
                     Ok(doc.save_to(w)?)
                 })
             })();
-            record(&mut done, &paths[current.get()], result);
+            record(&mut done, &paths[current.get()], result.map(|w| (w, None)));
         }
         // One PDF → a folder of page images.
         JobRequest::PdfToImages { format, dpi, pages } => {
@@ -272,14 +311,17 @@ pub fn run(
                 )
             });
             for file in written {
-                record(&mut done, pdf, Ok(file));
+                record(&mut done, pdf, Ok((file, None)));
             }
             if let Err(err) = result {
                 record(&mut done, pdf, Err(err));
             }
         }
         // One output per input.
-        JobRequest::ImageConvert { .. } | JobRequest::ImageResize { .. } => {
+        JobRequest::ImageConvert { .. }
+        | JobRequest::ImageResize { .. }
+        | JobRequest::ImageCompress { .. }
+        | JobRequest::ApplyPreset { .. } => {
             for (i, path) in paths.iter().enumerate() {
                 if is_cancelled() {
                     done.cancelled = true;
@@ -301,25 +343,81 @@ fn convert_one(
     request: &JobRequest,
     path: &Path,
     fallback: Option<&Path>,
-) -> Result<Written, AppError> {
+) -> Result<(Written, Option<Detail>), AppError> {
     let picture = img::load(path)?;
     let icc = picture.icc.as_deref();
+    let lossy = |format: OutputFormat| (format != OutputFormat::Png).then_some(());
     match request {
         JobRequest::ImageConvert { format, quality } => {
             let name = output::converted_name(path, format.extension());
-            output::write_output(parent(path), fallback, &name, |w| {
+            let written = output::write_output(parent(path), fallback, &name, |w| {
                 img::encode(&picture.image, icc, *format, *quality, w)
-            })
+            })?;
+            let detail = detail_of(&picture.image, lossy(*format).map(|()| *quality));
+            Ok((written, Some(detail)))
         }
         JobRequest::ImageResize { mode } => {
             let resized = img::resize(&picture.image, *mode);
             let name = output::suffixed_name(path, "resized", &img::same_format_extension(path));
-            output::write_output(parent(path), fallback, &name, |w| {
+            let written = output::write_output(parent(path), fallback, &name, |w| {
                 img::encode_like(&resized, icc, path, w)
-            })
+            })?;
+            let keeps_quality = matches!(img::same_format_extension(path).as_str(), "jpg" | "webp");
+            let detail = detail_of(&resized, keeps_quality.then_some(img::KEEP_FORMAT_QUALITY));
+            Ok((written, Some(detail)))
+        }
+        JobRequest::ImageCompress { target } => {
+            let plan = compress::plan_for_target(path, *target);
+            let encoded = compress::compress(&picture.image, icc, &plan)?;
+            let name = output::suffixed_name(path, "compressed", plan.format.extension());
+            write_encoded(path, fallback, &name, encoded)
+        }
+        JobRequest::ApplyPreset { preset } => {
+            let (shaped, plan) = compress::apply_preset_geometry(&picture.image, preset)?;
+            let encoded = compress::compress(&shaped, icc, &plan)?;
+            let name = output::suffixed_name(path, &file_safe(&preset.id), plan.format.extension());
+            write_encoded(path, fallback, &name, encoded)
         }
         _ => Err(AppError::internal("not a per-file action")),
     }
+}
+
+fn detail_of(image: &image::DynamicImage, quality: Option<u8>) -> Detail {
+    Detail {
+        width: image.width(),
+        height: image.height(),
+        quality,
+    }
+}
+
+fn write_encoded(
+    input: &Path,
+    fallback: Option<&Path>,
+    name: &str,
+    encoded: compress::Encoded,
+) -> Result<(Written, Option<Detail>), AppError> {
+    let detail = Detail {
+        width: encoded.width,
+        height: encoded.height,
+        quality: encoded.quality,
+    };
+    let written = output::write_output(parent(input), fallback, name, |w| {
+        Ok(w.write_all(&encoded.bytes)?)
+    })?;
+    Ok((written, Some(detail)))
+}
+
+/// Preset ids end up in file names: keep letters, digits, `-` and `_`.
+fn file_safe(id: &str) -> String {
+    id.chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '-'
+            }
+        })
+        .collect()
 }
 
 fn percent(index: usize, count: usize) -> f64 {
@@ -392,7 +490,7 @@ mod tests {
     fn names(done: &JobDone) -> Vec<String> {
         done.outputs
             .iter()
-            .map(|p| file_name(Path::new(p)))
+            .map(|o| file_name(Path::new(&o.path)))
             .collect()
     }
 
@@ -434,12 +532,12 @@ mod tests {
         assert_eq!(names(&pdf), ["photo +2.pdf"]);
 
         let merged_inputs = vec![
-            PathBuf::from(&pdf.outputs[0]),
-            PathBuf::from(&pdf.outputs[0]),
+            PathBuf::from(&pdf.outputs[0].path),
+            PathBuf::from(&pdf.outputs[0].path),
         ];
         let merge = run_quiet(JobRequest::PdfMerge, &merged_inputs);
         assert_eq!(names(&merge), ["photo +2 merged.pdf"]);
-        let merged = lopdf::Document::load(&merge.outputs[0]).unwrap();
+        let merged = lopdf::Document::load(&merge.outputs[0].path).unwrap();
         assert_eq!(merged.get_pages().len(), 6);
 
         let pages = run_quiet(
@@ -455,7 +553,43 @@ mod tests {
             ["photo +2-01.png", "photo +2-02.png", "photo +2-03.png"]
         );
 
-        for done in [&convert, &resize, &pdf, &merge, &pages] {
+        let compressed = run_quiet(
+            JobRequest::ImageCompress {
+                target: CompressTarget::Size { max_kb: 5 },
+            },
+            &inputs,
+        );
+        assert_eq!(
+            names(&compressed),
+            [
+                "photo-compressed.jpg",
+                "logo-compressed.png",
+                "pic-compressed.webp"
+            ]
+        );
+        assert!(compressed.outputs.iter().all(|o| o.bytes <= 5000));
+        let jpg = &compressed.outputs[0];
+        assert_eq!((jpg.width, jpg.height), (Some(64), Some(48)));
+        assert!(jpg.quality.is_some());
+        assert_eq!(compressed.outputs[1].quality, None, "PNG is lossless");
+
+        let preset: Preset = serde_json::from_str(
+            r#"{"id":"tiny thumb","label":"Tiny","format":"jpg","width":32,"height":32,"maxKB":5}"#,
+        )
+        .unwrap();
+        let preset_done = run_quiet(JobRequest::ApplyPreset { preset }, &inputs[..1]);
+        assert_eq!(names(&preset_done), ["photo-tiny-thumb.jpg"]);
+        assert_eq!(preset_done.outputs[0].width, Some(32));
+
+        for done in [
+            &convert,
+            &resize,
+            &pdf,
+            &merge,
+            &pages,
+            &compressed,
+            &preset_done,
+        ] {
             assert!(done.failures.is_empty(), "{:?}", done.failures);
             assert!(!done.cancelled);
         }

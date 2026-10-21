@@ -74,6 +74,33 @@ export type ResizeMode =
   | { kind: "exact"; width: number; height: number; keepAspect: boolean }
   | { kind: "percent"; percent: number };
 
+/** `compress::CompressTarget` */
+export type CompressTarget = { kind: "size"; maxKb: number } | { kind: "quality"; quality: number };
+
+/** `compress::Preset` (SPECS §8). Shipped presets are examples, never official specs. */
+export interface Preset {
+  id: string;
+  label: string;
+  format: "jpg" | "png" | "webp";
+  width?: number;
+  height?: number;
+  aspect?: string;
+  longEdge?: number;
+  minKB?: number;
+  maxKB?: number;
+  dpi?: number;
+  note?: string;
+}
+
+/** `commands::Estimate`: what Compress / a preset would produce for the first image. */
+export interface Estimate {
+  bytes: number;
+  originalBytes: number;
+  width: number;
+  height: number;
+  quality?: number | null;
+}
+
 /** `jobs::JobRequest`: what to run, with its options. */
 export type JobRequest =
   | { action: "images_to_pdf"; pageSize: "fit" | "a4" | "letter"; margin: "none" | "small" }
@@ -85,7 +112,9 @@ export type JobRequest =
       format: "jpg" | "png";
       dpi: number;
       pages: { kind: "all" } | { kind: "range"; spec: string };
-    };
+    }
+  | { action: "image_compress"; target: CompressTarget }
+  | { action: "apply_preset"; preset: Preset };
 
 /** Payload of the `job://progress` event. */
 export interface JobProgress {
@@ -103,10 +132,19 @@ export interface JobFailure {
   error: AppError;
 }
 
+/** `jobs::OutputFile`: a written file and, for images, what it ended up as. */
+export interface OutputFile {
+  path: string;
+  bytes: number;
+  width?: number;
+  height?: number;
+  quality?: number;
+}
+
 /** Payload of the `job://done` event (`jobs::JobDone`). */
 export interface JobDone {
   jobId: string;
-  outputs: string[];
+  outputs: OutputFile[];
   failures: JobFailure[];
   /** Some output went to Downloads because the folder wasn't writable. */
   savedToFallback: boolean;

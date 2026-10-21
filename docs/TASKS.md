@@ -53,10 +53,12 @@ Work top to bottom. One milestone per commit (`M<n>: summary`). Each milestone m
 - [x] Action list shows every action; unavailable ones disabled with a reason
 
 ## M5 — Compress + presets
-- [ ] `image_compress` quality mode
-- [ ] Target-size algorithm (SPECS §7) with tests on fixtures (hits ≤ target, respects min)
-- [ ] Load `resources/presets.json` + user presets; `apply_preset` action
-- [ ] Result view shows final size · dimensions · quality
+- [x] `image_compress` quality mode
+- [x] Target-size algorithm (SPECS §7) with tests on fixtures (hits ≤ target, respects min)
+- [x] Load `resources/presets.json` + user presets; `apply_preset` action
+- [x] Result view shows final size · dimensions · quality
+- [x] Compress keeps the format (JPG/WebP by quality, PNG lossless + pixel reduction); live size estimate on the first image
+- [x] Preset picker with plain-language summaries; KB limits pass under both 1000- and 1024-byte readings
 
 ## M6 — Settings window
 - [ ] Separate 480×560 window, opened from tray / Cmd/Ctrl+,
