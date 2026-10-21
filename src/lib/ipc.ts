@@ -5,6 +5,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
 import type {
   AppError,
+  EditorPreset,
   Estimate,
   FileSet,
   JobDone,
@@ -15,6 +16,8 @@ import type {
   PopupShowPayload,
   Preset,
   Preview,
+  Settings,
+  SettingsView,
 } from "./types";
 
 export function isAppError(value: unknown): value is AppError {
@@ -125,3 +128,41 @@ export const estimateOutput = (path: string, request: JobRequest) => call<Estima
 
 /** Show a file written by a job in Finder/Explorer. */
 export const revealOutput = (path: string) => call<void>("reveal_output", { path });
+
+// ---- Settings ----
+
+export const getSettings = () => call<SettingsView>("get_settings");
+
+/** Save and apply everything except the shortcut. */
+export const saveSettings = (settings: Settings) => call<SettingsView>("save_settings", { settings });
+
+/** Change the global shortcut (null = default). Rejects with a plain message if it can't be used. */
+export const setShortcut = (accelerator: string | null) => call<SettingsView>("set_shortcut", { accelerator });
+
+/** Pause the global shortcut while recording a new one. */
+export const suspendShortcut = (paused: boolean) => call<void>("suspend_shortcut", { paused });
+
+export const setLaunchAtLogin = (enabled: boolean) => call<SettingsView>("set_launch_at_login", { enabled });
+
+export const openSettings = (tab?: "general" | "conversions" | "presets") => call<void>("open_settings", { tab });
+
+export const onSettingsChanged = (handler: (view: SettingsView) => void): Promise<UnlistenFn> =>
+  listen<SettingsView>("settings://changed", (event) => handler(event.payload));
+
+export const presetsForEditor = () => call<EditorPreset[]>("presets_for_editor");
+
+export const savePresets = (presets: Preset[]) => call<EditorPreset[]>("save_presets", { presets });
+
+export const restorePresets = () => call<EditorPreset[]>("restore_presets");
+
+/** Native folder picker. Resolves to null when cancelled. */
+export async function chooseFolder(): Promise<string | null> {
+  const picked = await open({ directory: true, multiple: false });
+  return typeof picked === "string" ? picked : null;
+}
+
+/** Apply System / Light / Dark to this window's CSS (`data-theme` on <html>). */
+export function applyAppearance(appearance: Settings["appearance"]) {
+  if (appearance === "system") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = appearance;
+}

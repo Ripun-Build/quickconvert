@@ -53,9 +53,9 @@ export function setSide(side: "width" | "height", value: number, current: Size, 
   return scaled(original, ratio);
 }
 
-/** Default: long edge 1600 px (SPECS §6), or the original if it's smaller. */
-export function defaultSize(original: Size): Size {
-  return scaled(original, Math.min(1, 1600 / Math.max(original.width, original.height)));
+/** Default: long edge 1600 px (SPECS §6; Settings can change it), or the original if smaller. */
+export function defaultSize(original: Size, longEdge = 1600): Size {
+  return scaled(original, Math.min(1, longEdge / Math.max(original.width, original.height)));
 }
 
 export const percentOf = (size: Size, original: Size) => Math.round((size.width / original.width) * 1000) / 10;

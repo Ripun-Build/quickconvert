@@ -61,12 +61,14 @@ Work top to bottom. One milestone per commit (`M<n>: summary`). Each milestone m
 - [x] Preset picker with plain-language summaries; KB limits pass under both 1000- and 1024-byte readings
 
 ## M6 — Settings window
-- [ ] Separate 480×560 window, opened from tray / Cmd/Ctrl+,
-- [ ] Hotkey recorder with conflict detection + reset
-- [ ] Output location, defaults, appearance (System/Light/Dark), auto-hide toggle
-- [ ] Preset editor (add / edit / duplicate / delete)
-- [ ] Launch at login (`tauri-plugin-autostart`)
-- [ ] Settings persisted as JSON in app config dir
+- [x] Separate 480×560 window, opened from tray / Cmd/Ctrl+,
+- [x] Hotkey recorder with conflict detection + reset
+- [x] Output location, defaults, appearance (System/Light/Dark), auto-hide toggle
+- [x] Preset editor (add / edit / duplicate / delete)
+- [x] Launch at login (`tauri-plugin-autostart`)
+- [x] Settings persisted as JSON in app config dir
+- [x] Shortcut conflict at startup opens Settings → General with the message; system shortcuts refused
+- [x] Output folder, defaults and auto-hide applied across the popup and jobs
 
 ## M7 — Polish + v1 release
 - [ ] Walk through every acceptance criterion in SPECS §14 and fix gaps

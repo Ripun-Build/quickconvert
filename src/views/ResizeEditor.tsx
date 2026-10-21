@@ -21,11 +21,13 @@ const PRESETS = [25, 50, 75, 100];
 
 interface Props {
   files: FileInfo[];
+  /** Settings → Conversions → resize long edge. */
+  defaultLongEdge?: number;
   onBack: () => void;
   onRun: (request: JobRequest) => void;
 }
 
-export function ResizeEditor({ files, onBack, onRun }: Props) {
+export function ResizeEditor({ files, defaultLongEdge, onBack, onRun }: Props) {
   const [image, setImage] = useState<Preview | null>(null);
   const [failed, setFailed] = useState(false);
   const [size, setSize] = useState<Size>({ width: 1, height: 1 });
@@ -39,7 +41,7 @@ export function ResizeEditor({ files, onBack, onRun }: Props) {
       .then((p) => {
         if (!live) return;
         setImage(p);
-        setSize(defaultSize(p));
+        setSize(defaultSize(p, defaultLongEdge));
       })
       .catch(() => live && setFailed(true));
     return () => {

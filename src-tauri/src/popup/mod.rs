@@ -68,8 +68,6 @@ struct Layout {
 
 /// Shared popup state, managed by Tauri.
 pub struct PopupState {
-    /// Label of the registered hotkey (e.g. "⌃⇧Space"), shown in the UI.
-    pub hotkey_label: String,
     /// Whether native blur was applied; the UI uses a solid background otherwise.
     pub blur: bool,
     /// When the last show was requested, for the dev-only latency log.
@@ -82,9 +80,8 @@ pub struct PopupState {
 }
 
 impl PopupState {
-    pub fn new(hotkey_label: String, blur: bool) -> Self {
+    pub fn new(blur: bool) -> Self {
         Self {
-            hotkey_label,
             blur,
             show_requested: Mutex::new(None),
             generation: AtomicU64::new(0),
@@ -147,7 +144,7 @@ pub fn show(app: &AppHandle, anchor: Anchor, read_selection: bool) -> Result<(),
         ShowPayload {
             generation,
             origin,
-            hotkey: state.hotkey_label.clone(),
+            hotkey: app.state::<crate::shortcut::HotkeyState>().label(),
             reading: read_selection,
         },
     )?;

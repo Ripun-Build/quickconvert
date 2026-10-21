@@ -1,9 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the popup window",
+  "description": "Capability for the popup and Settings windows",
   "windows": [
-    "popup"
+    "popup",
+    "settings"
   ],
   "permissions": [
     "core:default",

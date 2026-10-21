@@ -8,22 +8,30 @@ pub mod popup;
 pub mod presets;
 pub mod selection;
 pub mod settings;
+pub mod settings_window;
+pub mod shortcut;
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{App, AppHandle, Manager, Monitor, PhysicalPosition, Position, WindowEvent};
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use tauri::{App, AppHandle, Manager, Monitor, PhysicalPosition, Position, Theme, WindowEvent};
+use tauri_plugin_global_shortcut::ShortcutState;
 
 use errors::AppError;
 use files::ThumbnailCache;
 use jobs::Jobs;
 use popup::{Anchor, PopupState};
+use settings::{AppSettings, Appearance};
+use shortcut::HotkeyState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
@@ -59,22 +67,41 @@ pub fn run() {
             commands::cancel_job,
             commands::open_output,
             commands::reveal_output,
+            commands::get_settings,
+            commands::save_settings,
+            commands::set_shortcut,
+            commands::suspend_shortcut,
+            commands::set_launch_at_login,
+            commands::open_settings,
+            commands::presets_for_editor,
+            commands::save_presets,
+            commands::restore_presets,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             let blur = apply_blur(app);
-            let (hotkey, hotkey_label) = default_hotkey();
-            let hotkey_ok = app.global_shortcut().register(hotkey).is_ok();
-            if !hotkey_ok {
-                eprintln!("[hotkey] {hotkey_label} is already in use; couldn't register it");
-            }
+            let config_dir = app.path().app_config_dir()?;
+            let settings = AppSettings::load(config_dir.join("settings.json"));
+            apply_appearance(app.handle(), settings.get().appearance);
 
-            app.manage(PopupState::new(hotkey_label.to_string(), blur));
+            app.manage(HotkeyState::default());
+            let hotkey_ok =
+                shortcut::register_initial(app.handle(), settings.get().shortcut.as_deref());
+            app.manage(settings);
+            app.manage(PopupState::new(blur));
             app.manage(ThumbnailCache::default());
             app.manage(Jobs::default());
-            build_tray(app, (!hotkey_ok).then_some(hotkey_label))?;
+            build_tray(app)?;
+            if !hotkey_ok {
+                // SPECS §4: show why and let the user pick another shortcut right away.
+                log_err(settings_window::open(
+                    app.handle(),
+                    Some("general"),
+                    Some("shortcut-conflict"),
+                ));
+            }
 
             if let Some(window) = app.get_webview_window(popup::LABEL) {
                 let handle = app.handle().clone();
@@ -95,26 +122,47 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-fn build_tray(app: &App, hotkey_conflict: Option<&str>) -> tauri::Result<()> {
+fn tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     let open = MenuItem::with_id(app, "open", "Open QuickConvert", true, None::<&str>)?;
-    // Settings window arrives in M6.
-    let settings = MenuItem::with_id(app, "settings", "Settings…", false, None::<&str>)?;
+    let settings = MenuItem::with_id(app, "settings", "Settings…", true, Some("CmdOrCtrl+,"))?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let menu = Menu::with_items(app, &[&open, &settings, &separator, &quit])?;
-    if let Some(label) = hotkey_conflict {
-        let note = format!("{label} is in use by another app");
+    let hotkey = app.state::<HotkeyState>();
+    if hotkey.conflict().is_some() {
+        let note = format!("{} is in use by another app", hotkey.label());
         let conflict = MenuItem::with_id(app, "hotkey-conflict", note, false, None::<&str>)?;
         menu.insert(&conflict, 0)?;
         menu.insert(&PredefinedMenuItem::separator(app)?, 1)?;
     }
+    Ok(menu)
+}
 
+/// Rebuild the tray menu (e.g. after the shortcut conflict is resolved).
+pub fn refresh_tray(app: &AppHandle) {
+    if let (Some(tray), Ok(menu)) = (app.tray_by_id("main"), tray_menu(app)) {
+        let _ = tray.set_menu(Some(menu));
+    }
+}
+
+/// System / Light / Dark for every window, native blur included.
+pub fn apply_appearance(app: &AppHandle, appearance: Appearance) {
+    app.set_theme(match appearance {
+        Appearance::System => None,
+        Appearance::Light => Some(Theme::Light),
+        Appearance::Dark => Some(Theme::Dark),
+    });
+}
+
+fn build_tray(app: &App) -> tauri::Result<()> {
+    let menu = tray_menu(app.handle())?;
     let mut tray = TrayIconBuilder::with_id("main")
         .tooltip("QuickConvert")
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "open" => log_err(popup::show(app, Anchor::Center, false)),
+            "settings" => log_err(settings_window::open(app, None, None)),
             "quit" => app.exit(0),
             _ => {}
         });
@@ -134,19 +182,14 @@ fn log_err(result: Result<(), AppError>) {
 
 // ---- Platform specifics: OS-specific code stays in small cfg blocks here and in selection/ ----
 
-/// Default hotkey and its display label (SPECS §4). Never Alt+Shift on Windows (switches layout).
-fn default_hotkey() -> (Shortcut, &'static str) {
-    #[cfg(target_os = "macos")]
-    return (
-        Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::Space),
-        "⌃⇧Space",
-    );
-    #[cfg(not(target_os = "macos"))]
-    return (
-        Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::Space),
-        "Ctrl+Alt+Space",
-    );
-}
+/// Shortcut labels use Mac symbols (⌃⌥⇧⌘) on macOS.
+pub const IS_MAC: bool = cfg!(target_os = "macos");
+
+/// Default shortcut (SPECS §4). Never Alt+Shift on Windows (switches keyboard layout).
+#[cfg(target_os = "macos")]
+pub const DEFAULT_ACCELERATOR: &str = "Control+Shift+Space";
+#[cfg(not(target_os = "macos"))]
+pub const DEFAULT_ACCELERATOR: &str = "Control+Alt+Space";
 
 /// Native blur behind the popup. Returns false if unavailable (UI falls back to `--bg-solid`).
 fn apply_blur(app: &App) -> bool {

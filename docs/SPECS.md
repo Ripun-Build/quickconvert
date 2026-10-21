@@ -127,7 +127,7 @@ Input: image, target bytes `T`, optional exact dimensions (from preset).
 
 ## 8. Presets
 
-Stored in `resources/presets.json` (shipped) and merged with user presets in `presets.json` in the app config dir (same `{ "presets": [...] }` format; a user preset with the same `id` replaces the shipped one; an unreadable file is ignored). Width + height resize and centre-crop to fill; `aspect` centre-crops; `longEdge` never upscales. Schema:
+Stored in `resources/presets.json` (shipped) and merged with user presets in `presets.json` in the app config dir (`{ "presets": [...], "removed": [ids] }`: a user preset with the same `id` replaces the shipped one, `removed` hides deleted built-ins, only differences from the built-ins are stored; an unreadable file is ignored). Width + height resize and centre-crop to fill; `aspect` centre-crops; `longEdge` never upscales. Schema:
 
 ```jsonc
 {
@@ -160,13 +160,18 @@ Shipped presets are clearly labelled **examples**; users can add, edit, duplicat
 
 ## 10. Settings window
 
-Small separate window (480 × 560), opened from tray or Cmd/Ctrl+,.
-- **Hotkey** — click-to-record field, conflict warning, Reset to default.
-- **Output** — Next to original / Custom folder (picker).
-- **Defaults** — JPEG quality (85), resize long edge (1600), PDF→image DPI (150).
-- **Presets** — list with add / edit / duplicate / delete.
-- **General** — Launch at login (`tauri-plugin-autostart`), Appearance: System / Light / Dark, Auto-hide after success (on).
-- Settings persist as JSON in the app config directory.
+Separate 480 × 560 window with toolbar tabs **General · Conversions · Presets**, opened from the tray (Settings…), the popup's gear button, or Cmd/Ctrl+, in the popup. It's created when first opened (never on the hotkey path) and every change applies immediately.
+
+- **General**
+  - **Shortcut** — click the field, press the new shortcut (Esc cancels); the current one is paused while recording. It must include ⌃/⌥/⌘ (Ctrl/Alt/Win). It's tested by registering it: if another app owns it, "⌃⌥K is already used by another app. Pick a different shortcut." and the old one stays. System shortcuts that would never fire (⌘Space, ⌃Space, ⌘Tab, ⌘⇧3/4/5, ⌘Q/W/H/M; Alt+Shift, Win+… on Windows) are refused with who uses them. Reset returns to the default.
+  - **Appearance** — System / Light / Dark, applied to every window including the native blur.
+  - **Launch at login** (`tauri-plugin-autostart`) and **Hide after saving** (on).
+  - If the shortcut can't be registered at startup, Settings opens on General with the conflict message (plus the tray menu note).
+- **Conversions**
+  - **Save converted files** — Next to the original / In a folder (picker). The folder applies to every action and is recreated if it was removed; Downloads stays the fallback when it isn't writable.
+  - **Defaults** — JPEG quality (85) for Convert, resize long edge (1600) for the Resize editor, PDF image size (Standard = 150 DPI) for PDF to JPG/PNG.
+- **Presets** — list (built-ins marked *Example*) with Add / Duplicate / Delete and an editor: name, format, size (exact W × H / ratio / long edge / keep), at least / at most KB, DPI, note; saves as you type. *Restore built-in presets* brings back deleted or edited built-ins and keeps the user's own.
+- Settings persist as `settings.json` in the app config directory (a missing or broken file means defaults; out-of-range values are corrected). Launch at login is owned by the OS login items, not this file.
 
 ## 11. Supported formats (v1)
 

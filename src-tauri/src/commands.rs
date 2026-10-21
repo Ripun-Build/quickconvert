@@ -4,7 +4,8 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::convert::compress::{self, Preset};
@@ -15,6 +16,9 @@ use crate::files::{self, FileSet, ThumbnailCache};
 use crate::jobs::{self, JobRequest, Jobs};
 use crate::popup::{self, PopupState};
 use crate::presets;
+use crate::settings::{AppSettings, Settings};
+use crate::settings_window;
+use crate::shortcut::{self, HotkeyState};
 
 #[tauri::command]
 pub fn hide_popup(app: AppHandle) -> Result<(), AppError> {
@@ -172,9 +176,8 @@ fn written_by_us(app: &AppHandle, path: String) -> Result<PathBuf, AppError> {
     }
 }
 
-/// Shipped presets merged with the user's (app config dir).
-#[tauri::command]
-pub fn list_presets(app: AppHandle) -> Vec<Preset> {
+/// Shipped preset files (bundled first; the source tree in dev builds) and the user's file.
+fn preset_paths(app: &AppHandle) -> (Vec<PathBuf>, Option<PathBuf>) {
     let mut shipped = Vec::new();
     if let Ok(dir) = app.path().resource_dir() {
         shipped.push(dir.join("presets.json"));
@@ -187,7 +190,41 @@ pub fn list_presets(app: AppHandle) -> Vec<Preset> {
         .app_config_dir()
         .ok()
         .map(|d| d.join("presets.json"));
+    (shipped, user)
+}
+
+/// Shipped presets merged with the user's (app config dir).
+#[tauri::command]
+pub fn list_presets(app: AppHandle) -> Vec<Preset> {
+    let (shipped, user) = preset_paths(&app);
     presets::load(&shipped, user.as_deref())
+}
+
+#[tauri::command]
+pub fn presets_for_editor(app: AppHandle) -> Vec<presets::EditorPreset> {
+    let (shipped, user) = preset_paths(&app);
+    presets::for_editor(&shipped, user.as_deref())
+}
+
+/// Save the editor's full preset list (only differences from the built-ins are stored).
+#[tauri::command]
+pub fn save_presets(
+    app: AppHandle,
+    presets: Vec<Preset>,
+) -> Result<Vec<presets::EditorPreset>, AppError> {
+    let (shipped, user) = preset_paths(&app);
+    let user = user.ok_or_else(|| AppError::internal("no config dir"))?;
+    presets::save(&shipped, &user, &presets)?;
+    Ok(presets::for_editor(&shipped, Some(&user)))
+}
+
+/// Bring back the built-in presets as shipped; the user's own presets stay.
+#[tauri::command]
+pub fn restore_presets(app: AppHandle) -> Result<Vec<presets::EditorPreset>, AppError> {
+    let (shipped, user) = preset_paths(&app);
+    let user = user.ok_or_else(|| AppError::internal("no config dir"))?;
+    presets::restore(&shipped, &user)?;
+    Ok(presets::for_editor(&shipped, Some(&user)))
 }
 
 /// What Compress / Apply preset would produce for one image, without writing anything.
@@ -248,4 +285,91 @@ pub async fn estimate_output(path: String, request: JobRequest) -> Result<Estima
         })
     })
     .await
+}
+
+// ---- Settings ----
+
+/// Settings plus what the Settings window needs to show alongside them.
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsView {
+    pub settings: Settings,
+    pub shortcut_label: String,
+    pub default_shortcut_label: String,
+    /// Why the shortcut couldn't be registered, if it couldn't.
+    pub shortcut_conflict: Option<String>,
+    pub launch_at_login: bool,
+}
+
+fn settings_view(app: &AppHandle) -> SettingsView {
+    let hotkey = app.state::<HotkeyState>();
+    SettingsView {
+        settings: app.state::<AppSettings>().get(),
+        shortcut_label: hotkey.label(),
+        default_shortcut_label: shortcut::label(&shortcut::default_shortcut(), crate::IS_MAC),
+        shortcut_conflict: hotkey.conflict(),
+        launch_at_login: app.autolaunch().is_enabled().unwrap_or(false),
+    }
+}
+
+/// Tell every window (popup and Settings) about new settings.
+fn broadcast(app: &AppHandle) -> SettingsView {
+    let view = settings_view(app);
+    let _ = app.emit("settings://changed", view.clone());
+    view
+}
+
+#[tauri::command]
+pub fn get_settings(app: AppHandle) -> SettingsView {
+    settings_view(&app)
+}
+
+/// Save everything except the shortcut (that goes through `set_shortcut`) and apply it.
+#[tauri::command]
+pub fn save_settings(app: AppHandle, settings: Settings) -> Result<SettingsView, AppError> {
+    let store = app.state::<AppSettings>();
+    let settings = Settings {
+        shortcut: store.get().shortcut,
+        ..settings
+    };
+    let saved = store.set(settings)?;
+    crate::apply_appearance(&app, saved.appearance);
+    Ok(broadcast(&app))
+}
+
+/// Change the global shortcut (None = default). Fails with a plain message if it can't be used;
+/// the old shortcut then stays.
+#[tauri::command]
+pub fn set_shortcut(app: AppHandle, accelerator: Option<String>) -> Result<SettingsView, AppError> {
+    let new = shortcut::change(&app, accelerator.as_deref())?;
+    let store = app.state::<AppSettings>();
+    store.set(Settings {
+        shortcut: accelerator.map(|_| shortcut::accelerator(&new)),
+        ..store.get()
+    })?;
+    crate::refresh_tray(&app);
+    Ok(broadcast(&app))
+}
+
+/// Pause the shortcut while the recorder listens for a new one.
+#[tauri::command]
+pub fn suspend_shortcut(app: AppHandle, paused: bool) {
+    shortcut::suspend(&app, paused);
+}
+
+#[tauri::command]
+pub fn set_launch_at_login(app: AppHandle, enabled: bool) -> Result<SettingsView, AppError> {
+    let autolaunch = app.autolaunch();
+    let result = if enabled {
+        autolaunch.enable()
+    } else {
+        autolaunch.disable()
+    };
+    result.map_err(|e| AppError::internal(e.to_string()))?;
+    Ok(broadcast(&app))
+}
+
+#[tauri::command]
+pub fn open_settings(app: AppHandle, tab: Option<String>) -> Result<(), AppError> {
+    settings_window::open(&app, tab.as_deref(), None)
 }

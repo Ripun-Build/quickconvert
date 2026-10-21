@@ -158,6 +158,14 @@ pub fn start(
     tauri::async_runtime::spawn_blocking(move || {
         let fallback = app.path().download_dir().ok();
         let pdfium_dirs = pdfium_dirs(&app);
+        let output_dir = app
+            .state::<crate::settings::AppSettings>()
+            .get()
+            .output_folder()
+            .map(Path::to_path_buf);
+        if let Some(dir) = &output_dir {
+            let _ = std::fs::create_dir_all(dir); // recreate a folder that was removed
+        }
         let emit = |index: usize, count: usize, name: &str, percent: f64| {
             let progress = Progress {
                 job_id: id.clone(),
@@ -171,6 +179,7 @@ pub fn start(
         let places = Places {
             fallback: fallback.as_deref(),
             pdfium_dirs: &pdfium_dirs,
+            output_dir: output_dir.as_deref(),
         };
         let done = run(&id, &request, &paths, &places, &cancel, &emit);
 
@@ -197,6 +206,15 @@ pub struct Places<'a> {
     pub fallback: Option<&'a Path>,
     /// Folders that may contain the pdfium library.
     pub pdfium_dirs: &'a [PathBuf],
+    /// Settings → Output → custom folder; None = next to each original.
+    pub output_dir: Option<&'a Path>,
+}
+
+impl Places<'_> {
+    /// Where the output for `input` goes.
+    fn dir_for<'p>(&'p self, input: &'p Path) -> &'p Path {
+        self.output_dir.unwrap_or_else(|| parent(input))
+    }
 }
 
 /// Bundled resources first; in dev builds also the source tree (`scripts/fetch-pdfium.sh`).
@@ -278,7 +296,7 @@ pub fn run(
                         output::merged_pdf_name(first),
                     ),
                 };
-                output::write_output(parent(first), fallback, &name, |w| {
+                output::write_output(places.dir_for(first), fallback, &name, |w| {
                     if is_cancelled() {
                         return Err(AppError::Cancelled);
                     }
@@ -302,6 +320,7 @@ pub fn run(
                 pdf_render::pdf_to_images(
                     lib,
                     pdf,
+                    places.dir_for(pdf),
                     *format,
                     *dpi,
                     pages,
@@ -328,7 +347,7 @@ pub fn run(
                     break;
                 }
                 emit(i, count, &file_name(path), percent(i, count));
-                let result = convert_one(request, path, fallback);
+                let result = convert_one(request, path, places.dir_for(path), fallback);
                 record(&mut done, path, result);
             }
         }
@@ -342,6 +361,7 @@ pub fn run(
 fn convert_one(
     request: &JobRequest,
     path: &Path,
+    out_dir: &Path,
     fallback: Option<&Path>,
 ) -> Result<(Written, Option<Detail>), AppError> {
     let picture = img::load(path)?;
@@ -350,7 +370,7 @@ fn convert_one(
     match request {
         JobRequest::ImageConvert { format, quality } => {
             let name = output::converted_name(path, format.extension());
-            let written = output::write_output(parent(path), fallback, &name, |w| {
+            let written = output::write_output(out_dir, fallback, &name, |w| {
                 img::encode(&picture.image, icc, *format, *quality, w)
             })?;
             let detail = detail_of(&picture.image, lossy(*format).map(|()| *quality));
@@ -359,7 +379,7 @@ fn convert_one(
         JobRequest::ImageResize { mode } => {
             let resized = img::resize(&picture.image, *mode);
             let name = output::suffixed_name(path, "resized", &img::same_format_extension(path));
-            let written = output::write_output(parent(path), fallback, &name, |w| {
+            let written = output::write_output(out_dir, fallback, &name, |w| {
                 img::encode_like(&resized, icc, path, w)
             })?;
             let keeps_quality = matches!(img::same_format_extension(path).as_str(), "jpg" | "webp");
@@ -370,13 +390,13 @@ fn convert_one(
             let plan = compress::plan_for_target(path, *target);
             let encoded = compress::compress(&picture.image, icc, &plan)?;
             let name = output::suffixed_name(path, "compressed", plan.format.extension());
-            write_encoded(path, fallback, &name, encoded)
+            write_encoded(out_dir, fallback, &name, encoded)
         }
         JobRequest::ApplyPreset { preset } => {
             let (shaped, plan) = compress::apply_preset_geometry(&picture.image, preset)?;
             let encoded = compress::compress(&shaped, icc, &plan)?;
             let name = output::suffixed_name(path, &file_safe(&preset.id), plan.format.extension());
-            write_encoded(path, fallback, &name, encoded)
+            write_encoded(out_dir, fallback, &name, encoded)
         }
         _ => Err(AppError::internal("not a per-file action")),
     }
@@ -391,7 +411,7 @@ fn detail_of(image: &image::DynamicImage, quality: Option<u8>) -> Detail {
 }
 
 fn write_encoded(
-    input: &Path,
+    out_dir: &Path,
     fallback: Option<&Path>,
     name: &str,
     encoded: compress::Encoded,
@@ -401,9 +421,13 @@ fn write_encoded(
         height: encoded.height,
         quality: encoded.quality,
     };
-    let written = output::write_output(parent(input), fallback, name, |w| {
-        Ok(w.write_all(&encoded.bytes)?)
-    })?;
+    let written =
+        output::write_output(
+            out_dir,
+            fallback,
+            name,
+            |w| Ok(w.write_all(&encoded.bytes)?),
+        )?;
     Ok((written, Some(detail)))
 }
 
@@ -476,6 +500,7 @@ mod tests {
         let places = Places {
             fallback: None,
             pdfium_dirs: &dirs,
+            output_dir: None,
         };
         run(
             "t",
@@ -659,6 +684,7 @@ mod tests {
         let places = Places {
             fallback: None,
             pdfium_dirs: &dirs,
+            output_dir: None,
         };
         let done = run("t", &request, &inputs, &places, &cancel, &emit);
         assert!(done.cancelled);

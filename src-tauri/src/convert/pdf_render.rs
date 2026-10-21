@@ -101,6 +101,7 @@ pub fn parse_pages(spec: &str, page_count: u32) -> Result<Vec<u32>, AppError> {
 pub fn pdf_to_images(
     pdfium: &Pdfium,
     pdf: &Path,
+    out_dir: &Path,
     format: OutputFormat,
     dpi: u16,
     selection: &PageSelection,
@@ -123,9 +124,8 @@ pub fn pdf_to_images(
         PageSelection::Range { spec } => parse_pages(spec, page_count)?,
     };
 
-    let parent = pdf.parent().unwrap_or(Path::new("."));
     let (folder, fell_back) =
-        output::create_folder(parent, fallback, &output::pages_folder_name(pdf))?;
+        output::create_folder(out_dir, fallback, &output::pages_folder_name(pdf))?;
     let first_new = written.len();
     let result = (|| {
         for (i, &page_number) in pages.iter().enumerate() {
@@ -296,6 +296,7 @@ mod tests {
         pdf_to_images(
             pdfium,
             &pdf,
+            pdf.parent().unwrap(),
             OutputFormat::Jpg,
             72,
             &PageSelection::All,
@@ -333,6 +334,7 @@ mod tests {
         pdf_to_images(
             pdfium,
             &pdf,
+            pdf.parent().unwrap(),
             OutputFormat::Png,
             150,
             &PageSelection::Range { spec: "3".into() },
@@ -364,6 +366,7 @@ mod tests {
         let err = pdf_to_images(
             pdfium,
             &pdf,
+            pdf.parent().unwrap(),
             OutputFormat::Jpg,
             72,
             &PageSelection::Range { spec: "5".into() },
@@ -378,6 +381,7 @@ mod tests {
         let err = pdf_to_images(
             pdfium,
             &pdf,
+            pdf.parent().unwrap(),
             OutputFormat::Jpg,
             72,
             &PageSelection::All,
@@ -400,6 +404,7 @@ mod tests {
         let err = pdf_to_images(
             pdfium(&lib_dirs()).unwrap(),
             &pdf,
+            pdf.parent().unwrap(),
             OutputFormat::Jpg,
             72,
             &PageSelection::All,
@@ -420,6 +425,7 @@ mod tests {
         let err = pdf_to_images(
             pdfium(&lib_dirs()).unwrap(),
             &pdf,
+            pdf.parent().unwrap(),
             OutputFormat::Jpg,
             72,
             &PageSelection::All,

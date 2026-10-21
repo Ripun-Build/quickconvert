@@ -18,7 +18,7 @@ function sharedFolder(outputs: string[]): string {
   return dir && outputs.every((o) => parentOf(o) === dir) ? ` in “${truncateMiddle(baseName(dir), 28)}”` : "";
 }
 
-export function Result({ done, onAutoHide }: { done: JobDone; onAutoHide: () => void }) {
+export function Result({ done, autoHide, onAutoHide }: { done: JobDone; autoHide: boolean; onAutoHide: () => void }) {
   const [engaged, setEngaged] = useState(false);
   const [copied, setCopied] = useState(false);
   const outputs = done.outputs.map((o) => o.path);
@@ -27,10 +27,10 @@ export function Result({ done, onAutoHide }: { done: JobDone; onAutoHide: () => 
 
   useEffect(() => {
     // Stay open while the user is pointing at it, or when there's a note to read.
-    if (engaged || done.savedToFallback) return;
+    if (!autoHide || engaged || done.savedToFallback) return;
     const timer = setTimeout(onAutoHide, AUTO_HIDE_MS);
     return () => clearTimeout(timer);
-  }, [engaged, done.savedToFallback, onAutoHide]);
+  }, [autoHide, engaged, done.savedToFallback, onAutoHide]);
 
   const copy = () => {
     navigator.clipboard

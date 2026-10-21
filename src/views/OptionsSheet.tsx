@@ -10,12 +10,14 @@ interface Props {
   action: ActionDef;
   spec: ActionSpec;
   fileCount: number;
+  /** User defaults that replace the spec's (e.g. Settings → JPEG quality). */
+  overrides?: OptionValues;
   onBack: () => void;
   onRun: (values: OptionValues) => void;
 }
 
-export function OptionsSheet({ action, spec, fileCount, onBack, onRun }: Props) {
-  const [values, setValues] = useState<OptionValues>(spec.defaults);
+export function OptionsSheet({ action, spec, fileCount, overrides, onBack, onRun }: Props) {
+  const [values, setValues] = useState<OptionValues>({ ...spec.defaults, ...overrides });
   const set = (key: string, value: OptionValues[string]) => setValues((v) => ({ ...v, [key]: value }));
   const visible = spec.fields.filter((f) => !f.visible || f.visible(values));
   const invalid = visible.some((f) => f.kind === "text" && !f.valid(String(values[f.key] ?? "")));

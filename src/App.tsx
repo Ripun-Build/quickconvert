@@ -1,15 +1,17 @@
 // Popup root: listens for show/files/job events, runs appear/hide motion, and switches between views.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence, MotionConfig, motion, useReducedMotion, type Transition } from "framer-motion";
-import { Settings } from "lucide-react";
+import { Settings as SettingsIcon } from "lucide-react";
 import { FileChip } from "./components/FileChip";
 import { ACTION_SPECS, type ActionDef, type ActionSpec, type InputKind, type OptionValues } from "./lib/actions";
 import {
+  applyAppearance,
   blurEnabled,
   cancelJob,
   chooseFiles,
   describeFiles,
   focusPopup,
+  getSettings,
   hidePopup,
   isAppError,
   onFileDrop,
@@ -17,12 +19,14 @@ import {
   onJobProgress,
   onPopupFiles,
   onPopupShow,
+  onSettingsChanged,
+  openSettings,
   popupShown,
   resizePopup,
   setPopupPinned,
   startJob,
 } from "./lib/ipc";
-import type { FileInfo, FileSet, JobDone, JobRequest, PopupOrigin } from "./lib/types";
+import type { FileInfo, FileSet, JobDone, JobRequest, PopupOrigin, Settings } from "./lib/types";
 import { ActionList } from "./views/ActionList";
 import { DropZone, type DropZoneHint } from "./views/DropZone";
 import { ErrorView } from "./views/ErrorView";
@@ -125,6 +129,7 @@ function App() {
   const [direction, setDirection] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [notice, setNotice] = useState<string>();
+  const [settings, setSettings] = useState<Settings | null>(null);
   const generation = useRef(0);
   const contentRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef(view);
@@ -210,6 +215,13 @@ function App() {
   );
 
   useEffect(() => {
+    getSettings()
+      .then((v) => {
+        setSettings(v.settings);
+        applyAppearance(v.settings.appearance);
+      })
+      .catch(() => {});
+
     blurEnabled()
       .then((on) => {
         if (!on) document.documentElement.dataset.blur = "off";
@@ -219,6 +231,10 @@ function App() {
       });
 
     const unlisteners = [
+      onSettingsChanged((v) => {
+        setSettings(v.settings);
+        applyAppearance(v.settings.appearance);
+      }),
       onPopupShow((payload) => {
         generation.current = payload.generation;
         setOrigin(payload.origin);
@@ -306,6 +322,11 @@ function App() {
   // Esc: back one view, cancel a running job, or close.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === ",") {
+        e.preventDefault();
+        void openSettings().catch(() => {});
+        return;
+      }
       if (e.key !== "Escape") return;
       const name = viewRef.current.name;
       if (["options", "resize", "pages", "compress", "preset", "error"].includes(name)) back();
@@ -382,11 +403,12 @@ function App() {
             {chipSet ? <FileChip set={chipSet} /> : <h1 className="type-title text-primary">QuickConvert</h1>}
             <button
               type="button"
-              disabled
+              onClick={() => void openSettings().catch(() => {})}
               aria-label="Settings"
-              className="flex size-7 shrink-0 items-center justify-center rounded-control text-secondary disabled:opacity-40"
+              title="Settings (⌘,)"
+              className="flex size-7 shrink-0 items-center justify-center rounded-control text-secondary hover:bg-surface-hover"
             >
-              <Settings size={18} strokeWidth={1.75} />
+              <SettingsIcon size={18} strokeWidth={1.75} />
             </button>
           </header>
 
@@ -404,6 +426,7 @@ function App() {
               >
                 <Body
                   view={view}
+                  settings={settings}
                   hotkey={hotkey}
                   dragging={dragging}
                   onChoose={choose}
@@ -432,6 +455,8 @@ function App() {
 
 interface BodyProps {
   view: View;
+  /** User defaults (Settings → Conversions); null until loaded. */
+  settings: Settings | null;
   hotkey: string;
   dragging: boolean;
   onChoose: () => void;
@@ -446,7 +471,8 @@ interface BodyProps {
 }
 
 function Body(props: BodyProps) {
-  const { view, hotkey, dragging, onChoose, onRun, onBack, onLaunch, onEditorRun, onCancel, onRetry, onAutoHide } = props;
+  const { view, settings, hotkey, dragging, onChoose, onRun, onBack, onLaunch, onEditorRun, onCancel, onRetry, onAutoHide } =
+    props;
   switch (view.name) {
     case "loading":
       return <LoadingRows />;
@@ -460,18 +486,33 @@ function Body(props: BodyProps) {
           action={view.action}
           spec={view.spec}
           fileCount={view.files.length}
+          overrides={view.action.id === "image_convert" && settings ? { quality: settings.jpegQuality } : undefined}
           onBack={onBack}
           onRun={(values) => onLaunch(view, values)}
         />
       );
     case "resize":
-      return <ResizeEditor files={view.files} onBack={onBack} onRun={(request) => onEditorRun(view, request)} />;
+      return (
+        <ResizeEditor
+          files={view.files}
+          defaultLongEdge={settings?.resizeLongEdge}
+          onBack={onBack}
+          onRun={(request) => onEditorRun(view, request)}
+        />
+      );
     case "compress":
       return <CompressView files={view.files} onBack={onBack} onRun={(request) => onEditorRun(view, request)} />;
     case "preset":
       return <PresetView files={view.files} onBack={onBack} onRun={(request) => onEditorRun(view, request)} />;
     case "pages":
-      return <PdfPagesEditor file={view.files[0]} onBack={onBack} onRun={(request) => onEditorRun(view, request)} />;
+      return (
+        <PdfPagesEditor
+          file={view.files[0]}
+          defaultDpi={settings?.pdfDpi}
+          onBack={onBack}
+          onRun={(request) => onEditorRun(view, request)}
+        />
+      );
     case "running":
       return (
         <Running
@@ -485,7 +526,7 @@ function Body(props: BodyProps) {
         />
       );
     case "result":
-      return <Result done={view.done} onAutoHide={onAutoHide} />;
+      return <Result done={view.done} autoHide={settings?.autoHide ?? true} onAutoHide={onAutoHide} />;
     case "error":
       return <ErrorView done={view.done} onRetry={onRetry} onBack={onBack} />;
   }

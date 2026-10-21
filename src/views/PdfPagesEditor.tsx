@@ -17,11 +17,13 @@ const FORMAT_HINTS = {
 
 interface Props {
   file: FileInfo;
+  /** Settings → Conversions → PDF image size (72 / 150 / 300). */
+  defaultDpi?: number;
   onBack: () => void;
   onRun: (request: JobRequest) => void;
 }
 
-export function PdfPagesEditor({ file, onBack, onRun }: Props) {
+export function PdfPagesEditor({ file, defaultDpi = 150, onBack, onRun }: Props) {
   const [sizes, setSizes] = useState<PdfPageSize[] | null>(null);
   const [error, setError] = useState<string>();
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -30,7 +32,7 @@ export function PdfPagesEditor({ file, onBack, onRun }: Props) {
   const [rangeError, setRangeError] = useState<string>();
   const [typing, setTyping] = useState(false);
   const [format, setFormat] = useState<"jpg" | "png">("jpg");
-  const [dpi, setDpi] = useState(150);
+  const [dpi, setDpi] = useState(defaultDpi);
   const count = sizes?.length ?? 0;
 
   useEffect(() => {

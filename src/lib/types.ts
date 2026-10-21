@@ -150,3 +150,31 @@ export interface JobDone {
   savedToFallback: boolean;
   cancelled: boolean;
 }
+
+/** `settings::Settings` (SPECS §10). */
+export interface Settings {
+  /** e.g. "Control+Shift+Space"; null = the default. */
+  shortcut: string | null;
+  output: { kind: "next_to_original" } | { kind: "folder"; path: string };
+  jpegQuality: number;
+  resizeLongEdge: number;
+  pdfDpi: number;
+  appearance: "system" | "light" | "dark";
+  autoHide: boolean;
+}
+
+/** `commands::SettingsView`: settings plus what the Settings window shows alongside them. */
+export interface SettingsView {
+  settings: Settings;
+  shortcutLabel: string;
+  defaultShortcutLabel: string;
+  shortcutConflict: string | null;
+  launchAtLogin: boolean;
+}
+
+/** `presets::EditorPreset` */
+export interface EditorPreset {
+  preset: Preset;
+  /** Shipped with the app (an example), possibly edited. */
+  builtin: boolean;
+}
