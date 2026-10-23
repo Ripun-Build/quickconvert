@@ -9,6 +9,7 @@ use image::{ImageDecoder, ImageReader};
 use lopdf::{dictionary, Dictionary, Document, Object, ObjectId, Stream};
 use serde::Deserialize;
 
+use super::crop::Turn;
 use super::image::{flatten_on_white, jpeg_near, load};
 use super::metadata;
 use crate::errors::AppError;
@@ -71,6 +72,7 @@ pub fn images_to_pdf(
     margin: Margin,
     workers: usize,
     step: SharedStep<'_>,
+    turns: &[Turn],
 ) -> Result<Document, ImageFailed> {
     // After the first failure, images not started yet are skipped (inputs start in order, so the
     // first failure by position is the one to report).
@@ -95,7 +97,12 @@ pub fn images_to_pdf(
             .unwrap_or_else(|| Err(AppError::internal("image worker stopped")))
             .map_err(|error| ImageFailed { index, error })?;
         let image = add_image(&mut doc, prepared);
-        let swaps = image.orientation >= 5;
+        // A turn from the page tray is folded into how the picture is drawn: never re-encoded.
+        let orientation = turn_orientation(
+            image.orientation,
+            turns.get(index).copied().unwrap_or_default(),
+        );
+        let swaps = orientation >= 5;
         let display = if swaps {
             (image.height, image.width)
         } else {
@@ -107,7 +114,7 @@ pub fn images_to_pdf(
             (None, _) => (DEFAULT_DPI, DEFAULT_DPI),
         };
         let layout = page_layout(display, dpi, page_size, margin);
-        let m = placement_matrix(image.orientation, layout.x, layout.y, layout.w, layout.h);
+        let m = placement_matrix(orientation, layout.x, layout.y, layout.w, layout.h);
         let content = format!(
             "q {} {} {} {} {} {} cm /Im0 Do Q",
             num(m[0]),
@@ -343,6 +350,23 @@ fn page_layout(px: (u32, u32), dpi: (f64, f64), page_size: PageSize, margin: Mar
         w,
         h,
     }
+}
+
+/// EXIF orientation `orientation` followed by a clockwise `turn`, as one EXIF orientation.
+/// Orientations are (mirrored?, clockwise quarter turns): 1 = (no, 0), 6 = (no, 1), 3 = (no, 2),
+/// 8 = (no, 3), 2 = (yes, 0), 7 = (yes, 1), 4 = (yes, 2), 5 = (yes, 3).
+pub fn turn_orientation(orientation: u8, turn: Turn) -> u8 {
+    const PLAIN: [u8; 4] = [1, 6, 3, 8];
+    const MIRRORED: [u8; 4] = [2, 7, 4, 5];
+    let quarters = usize::from(turn.degrees() / 90);
+    let (table, at) = match PLAIN.iter().position(|&o| o == orientation) {
+        Some(i) => (PLAIN, i),
+        None => (
+            MIRRORED,
+            MIRRORED.iter().position(|&o| o == orientation).unwrap_or(0),
+        ),
+    };
+    table[(at + quarters) % 4]
 }
 
 /// `cm` matrix drawing the stored image upright into the box (x, y, w, h) for EXIF orientation 1–8.
@@ -645,6 +669,7 @@ mod tests {
             Margin::None,
             3,
             &ok_step,
+            &[],
         )
         .unwrap();
         let doc = reload(&mut doc);
@@ -721,6 +746,7 @@ mod tests {
             Margin::None,
             1,
             &ok_step,
+            &[],
         )
         .unwrap()
         .save(&one)
@@ -789,7 +815,7 @@ mod tests {
                 Ok(())
             }
         };
-        let result = images_to_pdf(&[a.clone(), a], PageSize::Fit, Margin::None, 2, &step);
+        let result = images_to_pdf(&[a.clone(), a], PageSize::Fit, Margin::None, 2, &step, &[]);
         assert!(matches!(
             result,
             Err(ImageFailed {
@@ -817,7 +843,8 @@ mod tests {
         .unwrap();
         std::fs::write(&path, &buf).unwrap();
 
-        let mut doc = images_to_pdf(&[path], PageSize::Fit, Margin::None, 1, &ok_step).unwrap();
+        let mut doc =
+            images_to_pdf(&[path], PageSize::Fit, Margin::None, 1, &ok_step, &[]).unwrap();
         let doc = reload(&mut doc);
         let page = doc.get_pages().into_values().next().unwrap();
         let image = page_image(&doc, page);
@@ -845,7 +872,7 @@ mod tests {
                 p
             })
             .collect();
-        let mut doc = images_to_pdf(&paths, PageSize::Fit, Margin::None, 4, &ok_step).unwrap();
+        let mut doc = images_to_pdf(&paths, PageSize::Fit, Margin::None, 4, &ok_step, &[]).unwrap();
         let doc = reload(&mut doc);
         let widths: Vec<i64> = doc
             .get_pages()
@@ -866,7 +893,7 @@ mod tests {
         std::fs::write(&bad, b"not a png").unwrap();
         with_bad.insert(5, bad);
         let failed =
-            images_to_pdf(&with_bad, PageSize::Fit, Margin::None, 4, &ok_step).unwrap_err();
+            images_to_pdf(&with_bad, PageSize::Fit, Margin::None, 4, &ok_step, &[]).unwrap_err();
         assert_eq!(failed.index, 5);
         assert_eq!(failed.error.code(), "corrupt");
         std::fs::remove_dir_all(dir).unwrap();
@@ -877,7 +904,8 @@ mod tests {
         let dir = temp_dir("private");
         let photo = dir.join("phone.jpg");
         std::fs::write(&photo, metadata::tests::phone_jpeg()).unwrap();
-        let mut doc = images_to_pdf(&[photo], PageSize::Fit, Margin::None, 1, &ok_step).unwrap();
+        let mut doc =
+            images_to_pdf(&[photo], PageSize::Fit, Margin::None, 1, &ok_step, &[]).unwrap();
         let mut bytes = Vec::new();
         doc.save_to(&mut bytes).unwrap();
         for personal in [
@@ -896,7 +924,8 @@ mod tests {
     #[test]
     fn heic_pages_are_stored_as_jpeg() {
         let heic = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sideways-gps.heic");
-        let mut doc = images_to_pdf(&[heic], PageSize::Fit, Margin::None, 1, &ok_step).unwrap();
+        let mut doc =
+            images_to_pdf(&[heic], PageSize::Fit, Margin::None, 1, &ok_step, &[]).unwrap();
         let doc = reload(&mut doc);
         let page = doc.get_pages().into_values().next().unwrap();
         let image = page_image(&doc, page);
@@ -906,5 +935,63 @@ mod tests {
         );
         // Upright: stored 300 × 200, tagged sideways → a 200 × 300 page image.
         assert_eq!(image.dict.get(b"Width").unwrap().as_i64().unwrap(), 200);
+    }
+
+    #[test]
+    fn tray_turns_combine_with_photo_orientation() {
+        use image::metadata::Orientation;
+        // A small picture with a distinct corner, so every orientation looks different.
+        let base = DynamicImage::ImageRgb8(RgbImage::from_fn(3, 2, |x, y| {
+            Rgb([(x * 80) as u8, (y * 120) as u8, 7])
+        }));
+        let shown = |exif: u8| {
+            let mut img = base.clone();
+            img.apply_orientation(Orientation::from_exif(exif).unwrap());
+            img.to_rgb8()
+        };
+        for exif in 1..=8u8 {
+            for (turn, rotate) in [
+                (Turn::None, 0),
+                (Turn::Right, 1),
+                (Turn::Half, 2),
+                (Turn::Left, 3),
+            ] {
+                let mut expected = DynamicImage::ImageRgb8(shown(exif));
+                for _ in 0..rotate {
+                    expected = expected.rotate90();
+                }
+                assert_eq!(
+                    shown(turn_orientation(exif, turn)),
+                    expected.to_rgb8(),
+                    "orientation {exif} turned {turn:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_turned_photo_gets_a_landscape_page_and_stays_byte_for_byte() {
+        let dir = temp_dir("tray-turn");
+        let path = dir.join("tall.jpg");
+        let bytes = jpeg(150, 300);
+        std::fs::write(&path, &bytes).unwrap();
+        let mut doc = images_to_pdf(
+            &[path],
+            PageSize::Fit,
+            Margin::None,
+            1,
+            &ok_step,
+            &[Turn::Right],
+        )
+        .unwrap();
+        let doc = reload(&mut doc);
+        let page = doc.get_pages().into_values().next().unwrap();
+        // 150 × 300 px turned → shown 300 × 150 → at 150 dpi 144 × 72 pt.
+        assert_eq!(media_box(&doc, page), (144.0, 72.0));
+        assert_eq!(
+            page_image(&doc, page).content,
+            metadata::clean_jpeg(&bytes, false).unwrap().bytes
+        );
+        std::fs::remove_dir_all(dir).unwrap();
     }
 }

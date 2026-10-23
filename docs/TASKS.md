@@ -103,7 +103,7 @@ v0.1.0 is public, so Phase 2 ships as an update of the same app: settings and pr
 - [x] Make PDF smaller (`pdf_compress`): Smallest / Balanced / Print with a live size, pictures scaled to the page and re-saved, extras removed; "already small" reported, not failed
 
 ### M11 — PageTray
-- [ ] PageTray (reorder/rotate/remove before PDF)
+- [x] PageTray for Combine into PDF: drag to reorder, turn (lossless, folded into the photo's orientation), leave out (greyed, click to bring back), page previews for Fit / A4 / Letter and margin, Name A→Z / Reverse / Reset, Straighten photos, keyboard
 
 ### M12 — v0.2.0 release
 - [ ] Version 0.2.0, release notes, README (use + screenshots) for the new behaviour, v0.1.0 settings/presets still load, universal DMG, GitHub release

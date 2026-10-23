@@ -76,7 +76,7 @@ The selection is only read when Explorer/Finder is the frontmost app at the mome
 | **SplitEditor** | Popup widens to 720 px. Page grid (the PDF → images thumbnails) on the left; right column: Segmented **Split into parts** / Keep pages. Split: each tile is captioned "4 · Part 2", pages that start a part get an accent ring and a ✂ badge; quick chips Every page / Every 2 / Every 3 / Clear; the parts listed ("Part 2 · pages 4–7", first six then "+ N more"). Keep: picked pages ringed with a ✓, All / None, a "2, 5-7" field in sync both ways. Button "Split into 3 PDFs" / "Save 2 pages as a new PDF". |
 | **PageRotateView** | Popup widens to 720 px. "Make every page" Segmented over a 4-column grid of square cells, so a page can turn inside its cell; same badges, clicks and summary line as RotateView. Button "Rotate 3 pages" / "Nothing to turn" ("Checking…" until every page is checked). |
 | **PdfCompressView** | Three radio cards (Smallest / Balanced / Print, each with a one-line use) and a live card "24 MB → 3.1 MB" for the first PDF ("Already about as small as it gets: no copy will be saved." when under 5 %). Button "Make smaller · 3 PDFs". |
-| **PageTray** | Phase 2. Thumbnails of images/pages; drag to reorder, rotate, remove; then "Create PDF". |
+| **PageTray** | Combine into PDF (v0.2). Popup widens to 720 px. Every selected photo as a page tile in a 4-column grid, numbered "Page 3"; each tile previews the real page (page shape for the chosen size, photo placed with the margin; Fit shows its 10 mm margin as a thin 2 % border). Drag a tile to move it (an accent bar shows where it lands; the grid scrolls near its edges); ↻ on the tile turns it (Shift: left), × leaves it out — it stays greyed in place as "Left out" and a click brings it back. Keyboard: ⌥← / ⌥→ move, R / Shift-R turn, Delete leaves out / brings back. Right column: Page size **Fit** / A4 / Letter, Margin **None** / Small, Order chips Name A→Z (natural) · Reverse · Reset, and **Straighten photos** (on click: the Rotate which-way-is-up check, turning sideways photos; "Turned 2 photos · 1 couldn't tell"). Button "Create PDF · 6 pages (1 left out)". |
 
 ### Keyboard
 - Typing anywhere focuses the search field and filters actions (fuzzy match on label + keywords).
@@ -102,7 +102,7 @@ Input types: `image` = JPG/JPEG, PNG, WebP, BMP, GIF (first frame), TIFF, HEIC/H
 ### v1 (MVP)
 | id | Label | Input | Output | Options (defaults **bold**) |
 |---|---|---|---|---|
-| `images_to_pdf` | Combine into PDF | 1+ images | 1 PDF | Page size: **Fit to image** (image DPI, else 150 DPI) / A4 / Letter (landscape for wide images) · Margin: **None** / Small (10 mm) · Order: **selection order** (by filename if unknown). JPEGs embedded without re-encoding, minus their metadata blocks (location, camera, date, XMP, comments; v0.2); EXIF rotation applied. HEIC pages stored as JPEG sized like the original (quality 90 / 85 / 80, as above) to keep the PDF small. |
+| `images_to_pdf` | Combine into PDF | 1+ images | 1 PDF | **PageTray** (v0.2; replaces the options sheet): order, turns and left-out photos as arranged there — turns are folded into how each picture is drawn (combined with its EXIF orientation), so JPEGs stay byte-for-byte. Page size: **Fit to image** (image DPI, else 150 DPI) / A4 / Letter (landscape for wide images) · Margin: **None** / Small (10 mm) · Order: **selection order** (by filename if unknown). JPEGs embedded without re-encoding, minus their metadata blocks (location, camera, date, XMP, comments; v0.2); EXIF rotation applied. HEIC pages stored as JPEG sized like the original (quality 90 / 85 / 80, as above) to keep the PDF small. |
 | `pdf_to_images` | PDF to JPG/PNG | 1 PDF | 1 image per page | **PdfPagesEditor**. Format: **JPG** / PNG · Size: Screen / **Standard** / Print (72 / 150 / 300 DPI) · Pages: **All** / picked pages or range "1-3,5" |
 | `image_convert` | Convert to… | 1+ images | same count | Format: **JPG** / PNG / WebP (lossy, libwebp) · Quality 1–100 (**85**) for JPG/WebP · Transparent background → **white** (JPG only) |
 | `image_resize` | Resize | 1+ images | same count | **ResizeEditor** (visual). Starts at long edge **1600 px** (or the original if smaller); never upscales. Several images: aspect locked → same percentage for each (each keeps its shape); unlocked → every image becomes exactly W × H. |
@@ -123,7 +123,6 @@ Input types: `image` = JPG/JPEG, PNG, WebP, BMP, GIF (first frame), TIFF, HEIC/H
 
 `heic_to_jpg` is covered by Convert to… now that HEIC is a normal input (typing "heic" finds it).
 
-Still to come in v0.2: PageTray for `images_to_pdf`.
 
 PDFs that open without a password are saved without their encryption by these edits; password-protected PDFs get the usual "This PDF is password-protected." Editing a signed PDF invalidates its signature (as any edit does).
 

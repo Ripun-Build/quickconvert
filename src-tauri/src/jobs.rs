@@ -33,6 +33,9 @@ pub enum JobRequest {
     ImagesToPdf {
         page_size: PageSize,
         margin: Margin,
+        /// Page tray: a quarter turn for some photos, keyed by path (drawn turned, not re-encoded).
+        #[serde(default)]
+        turns: HashMap<String, Turn>,
     },
     PdfMerge,
     ImageConvert {
@@ -341,12 +344,31 @@ pub fn run(
             let first = &paths[0];
             let result = (|| {
                 let (mut doc, name) = match request {
-                    JobRequest::ImagesToPdf { page_size, margin } => (
-                        pdf::images_to_pdf(paths, *page_size, *margin, places.workers, &step)
-                            .map_err(|failed| {
-                                current.store(failed.index, Ordering::Relaxed);
-                                failed.error
-                            })?,
+                    JobRequest::ImagesToPdf {
+                        page_size,
+                        margin,
+                        turns,
+                    } => (
+                        pdf::images_to_pdf(
+                            paths,
+                            *page_size,
+                            *margin,
+                            places.workers,
+                            &step,
+                            &paths
+                                .iter()
+                                .map(|p| {
+                                    turns
+                                        .get(p.to_string_lossy().as_ref())
+                                        .copied()
+                                        .unwrap_or_default()
+                                })
+                                .collect::<Vec<_>>(),
+                        )
+                        .map_err(|failed| {
+                            current.store(failed.index, Ordering::Relaxed);
+                            failed.error
+                        })?,
                         output::combined_pdf_name(first, count),
                     ),
                     _ => (
@@ -833,6 +855,7 @@ mod tests {
             JobRequest::ImagesToPdf {
                 page_size: PageSize::A4,
                 margin: Margin::Small,
+                turns: HashMap::new(),
             },
             &inputs,
         );
@@ -1129,6 +1152,7 @@ mod tests {
             JobRequest::ImagesToPdf {
                 page_size: PageSize::Fit,
                 margin: Margin::None,
+                turns: HashMap::new(),
             },
             &inputs,
         );
@@ -1176,7 +1200,8 @@ mod tests {
             r,
             JobRequest::ImagesToPdf {
                 page_size: PageSize::A4,
-                margin: Margin::Small
+                margin: Margin::Small,
+                turns: HashMap::new()
             }
         );
         let r: JobRequest = serde_json::from_str(
@@ -1239,6 +1264,18 @@ mod tests {
         );
         let r: JobRequest = serde_json::from_str(r#"{"action":"strip_metadata"}"#).unwrap();
         assert_eq!(r, JobRequest::StripMetadata);
+        let r: JobRequest = serde_json::from_str(
+            r#"{"action":"images_to_pdf","pageSize":"fit","margin":"none","turns":{"/a/b.jpg":90}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            r,
+            JobRequest::ImagesToPdf {
+                page_size: PageSize::Fit,
+                margin: Margin::None,
+                turns: HashMap::from([("/a/b.jpg".to_string(), Turn::Right)])
+            }
+        );
         let r: JobRequest = serde_json::from_str(r#"{"action":"pdf_merge"}"#).unwrap();
         assert_eq!(r, JobRequest::PdfMerge);
         let r: JobRequest = serde_json::from_str(
@@ -1291,6 +1328,7 @@ mod tests {
             JobRequest::ImagesToPdf {
                 page_size: PageSize::Fit,
                 margin: Margin::None,
+                turns: HashMap::new(),
             },
             &photos,
         );
@@ -1326,6 +1364,7 @@ mod tests {
             JobRequest::ImagesToPdf {
                 page_size: PageSize::A4,
                 margin: Margin::None,
+                turns: HashMap::new(),
             },
             &pages,
         );

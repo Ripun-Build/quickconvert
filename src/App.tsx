@@ -34,6 +34,7 @@ import { OptionsSheet } from "./views/OptionsSheet";
 import { CompressView } from "./views/CompressView";
 import { CropEditor } from "./views/CropEditor";
 import { PageRotateView } from "./views/PageRotateView";
+import { PageTray } from "./views/PageTray";
 import { PdfCompressView } from "./views/PdfCompressView";
 import { PdfPagesEditor } from "./views/PdfPagesEditor";
 import { PresetView } from "./views/PresetView";
@@ -75,6 +76,7 @@ type View =
   | { name: "crop"; set: FileSet; action: ActionDef; files: FileInfo[] }
   | { name: "rotate"; set: FileSet; action: ActionDef; files: FileInfo[] }
   | { name: "split"; set: FileSet; action: ActionDef; files: FileInfo[] }
+  | { name: "tray"; set: FileSet; action: ActionDef; files: FileInfo[] }
   | { name: "pagerotate"; set: FileSet; action: ActionDef; files: FileInfo[] }
   | { name: "pdfcompress"; set: FileSet; action: ActionDef; files: FileInfo[] }
   | { name: "pages"; set: FileSet; action: ActionDef; files: FileInfo[] }
@@ -103,6 +105,7 @@ const DEPTH: Record<View["name"], number> = {
   crop: 1,
   rotate: 1,
   split: 1,
+  tray: 1,
   pagerotate: 1,
   pdfcompress: 1,
   pages: 1,
@@ -122,6 +125,7 @@ const FOOTER: Record<View["name"], string> = {
   crop: "drag the box or its handles · ↵ crop · esc back",
   rotate: "click a picture to turn it · ↵ rotate · esc back",
   split: "click pages · ↵ save · esc back",
+  tray: "drag photos to reorder · ↵ create PDF · esc back",
   pagerotate: "click a page to turn it · ↵ rotate · esc back",
   pdfcompress: "↵ make smaller · esc back",
   pages: "click pages to pick · shift-click for a range · esc back",
@@ -302,7 +306,7 @@ function App() {
   }, [showCount]);
 
   // Fit the window to the content: editors are wider (SPECS §5), height follows the content.
-  const wide = ["resize", "crop", "pages", "split", "pagerotate"].includes(view.name);
+  const wide = ["resize", "crop", "pages", "split", "tray", "pagerotate"].includes(view.name);
   useLayoutEffect(() => {
     const el = contentRef.current;
     if (!el) return;
@@ -352,7 +356,7 @@ function App() {
       if (e.key !== "Escape") return;
       const name = viewRef.current.name;
       if (
-        ["options", "resize", "crop", "rotate", "split", "pagerotate", "pdfcompress", "pages", "compress", "preset", "error"].includes(
+        ["options", "resize", "crop", "rotate", "split", "tray", "pagerotate", "pdfcompress", "pages", "compress", "preset", "error"].includes(
           name,
         )
       )
@@ -388,6 +392,7 @@ function App() {
     else if (action.id === "image_crop") go({ name: "crop", set, action, files });
     else if (action.id === "image_rotate") go({ name: "rotate", set, action, files });
     else if (action.id === "pdf_split") go({ name: "split", set, action, files });
+    else if (action.id === "images_to_pdf") go({ name: "tray", set, action, files });
     else if (action.id === "pdf_rotate") go({ name: "pagerotate", set, action, files });
     else if (action.id === "pdf_compress") go({ name: "pdfcompress", set, action, files });
     else if (action.id === "pdf_to_images") go({ name: "pages", set, action, files });
@@ -528,7 +533,7 @@ interface BodyProps {
   onEditorRun: (
     view: Extract<
       View,
-      { name: "resize" | "crop" | "rotate" | "split" | "pagerotate" | "pdfcompress" | "pages" | "compress" | "preset" }
+      { name: "resize" | "crop" | "rotate" | "split" | "tray" | "pagerotate" | "pdfcompress" | "pages" | "compress" | "preset" }
     >,
     request: JobRequest,
     /** Only these files (Rotate skips images that are already right); default: the view's files. */
@@ -577,6 +582,8 @@ function Body(props: BodyProps) {
       );
     case "split":
       return <SplitEditor file={view.files[0]} onBack={onBack} onRun={(request) => onEditorRun(view, request)} />;
+    case "tray":
+      return <PageTray files={view.files} onBack={onBack} onRun={(request, files) => onEditorRun(view, request, files)} />;
     case "pagerotate":
       return <PageRotateView file={view.files[0]} onBack={onBack} onRun={(request) => onEditorRun(view, request)} />;
     case "pdfcompress":

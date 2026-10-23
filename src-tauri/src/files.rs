@@ -122,6 +122,21 @@ pub fn preview(path: &Path) -> Result<Preview, AppError> {
     })
 }
 
+/// Longest side of page-tray thumbnails in px (sharp at the tile size on Retina screens).
+const TRAY_SIZE: u32 = 240;
+
+/// Page tray tile: a thumbnail plus the photo's upright shape (the size of the thumbnail; only the
+/// proportions matter for the page preview).
+pub fn tray_thumbnail(path: &Path) -> Result<Preview, AppError> {
+    let picture = crate::convert::image::load_small(path, TRAY_SIZE * 2)?;
+    let small = picture.image.thumbnail(TRAY_SIZE, TRAY_SIZE);
+    Ok(Preview {
+        url: jpeg_data_url(&small, picture.icc.as_deref())?,
+        width: small.width(),
+        height: small.height(),
+    })
+}
+
 /// `image` as a JPEG data URL (quality 85), colour profile kept.
 pub fn jpeg_data_url(image: &image::DynamicImage, icc: Option<&[u8]>) -> Result<String, AppError> {
     let mut jpg = Vec::new();

@@ -273,7 +273,7 @@ mod tests {
             .collect();
         let step = |_| Ok(());
         let pdf = dir.join(name);
-        images_to_pdf(&images, PageSize::Fit, Margin::None, 4, &step)
+        images_to_pdf(&images, PageSize::Fit, Margin::None, 4, &step, &[])
             .unwrap()
             .save(&pdf)
             .unwrap();

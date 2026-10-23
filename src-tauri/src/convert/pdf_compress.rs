@@ -344,7 +344,7 @@ pub(crate) mod tests {
             })
             .collect();
         let ok = |_: usize| Ok(());
-        let mut doc = images_to_pdf(&images, PageSize::A4, Margin::None, 2, &ok).unwrap();
+        let mut doc = images_to_pdf(&images, PageSize::A4, Margin::None, 2, &ok, &[]).unwrap();
         let path = dir.join("scan.pdf");
         doc.save(&path).unwrap();
         path
@@ -492,7 +492,7 @@ pub(crate) mod tests {
         DynamicImage::ImageLuma8(gray).save(&p).unwrap();
         let ok = |_: usize| Ok(());
         // Combine stores PNGs losslessly as RGB; rewrite it as a gray Flate picture.
-        let mut doc = images_to_pdf(&[p], PageSize::A4, Margin::None, 1, &ok).unwrap();
+        let mut doc = images_to_pdf(&[p], PageSize::A4, Margin::None, 1, &ok, &[]).unwrap();
         for object in doc.objects.values_mut() {
             if let Ok(stream) = object.as_stream_mut() {
                 if stream.dict.get(b"Subtype").and_then(Object::as_name).ok() == Some(b"Image") {

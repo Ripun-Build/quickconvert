@@ -122,7 +122,13 @@ export interface Estimate {
 
 /** `jobs::JobRequest`: what to run, with its options. */
 export type JobRequest =
-  | { action: "images_to_pdf"; pageSize: "fit" | "a4" | "letter"; margin: "none" | "small" }
+  | {
+      action: "images_to_pdf";
+      pageSize: "fit" | "a4" | "letter";
+      margin: "none" | "small";
+      /** Page tray: quarter turns keyed by path (drawn turned, not re-encoded). */
+      turns?: Record<string, Turn>;
+    }
   | { action: "pdf_merge" }
   | { action: "image_convert"; format: "jpg" | "png" | "webp"; quality: number }
   | { action: "image_resize"; mode: ResizeMode }

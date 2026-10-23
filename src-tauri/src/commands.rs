@@ -72,6 +72,12 @@ pub async fn rotate_check(
     blocking(move || crate::upright::check(&PathBuf::from(path), size.clamp(64, 1024))).await
 }
 
+/// Page tray: a sharp thumbnail and the photo's upright proportions.
+#[tauri::command]
+pub async fn tray_thumbnail(path: String) -> Result<files::Preview, AppError> {
+    blocking(move || files::tray_thumbnail(&PathBuf::from(path))).await
+}
+
 /// Make PDF smaller: what `level` would give for this PDF, without saving anything.
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]

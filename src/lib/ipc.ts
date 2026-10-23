@@ -78,6 +78,9 @@ export const thumbnail = (path: string) => call<string>("thumbnail", { path });
 /** Rotate view: thumbnail (longest side `size` px) and which way is up, if it can tell. */
 export const rotateCheck = (path: string, size: number) => call<RotateCheck>("rotate_check", { path, size });
 
+/** Page tray: a sharp thumbnail and the photo's upright proportions. */
+export const trayThumbnail = (path: string) => call<Preview>("tray_thumbnail", { path });
+
 /** Make PDF smaller: the result size for `level`, measured without saving. */
 export const pdfCompressEstimate = (path: string, level: PdfLevel) =>
   call<PdfEstimate>("pdf_compress_estimate", { path, level });

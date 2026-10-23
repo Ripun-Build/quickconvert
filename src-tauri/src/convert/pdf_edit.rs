@@ -180,7 +180,7 @@ pub(crate) mod tests {
             })
             .collect();
         let ok = |_: usize| Ok(());
-        let mut doc = images_to_pdf(&images, PageSize::A4, Margin::None, 2, &ok).unwrap();
+        let mut doc = images_to_pdf(&images, PageSize::A4, Margin::None, 2, &ok, &[]).unwrap();
         let path = dir.join("doc.pdf");
         doc.save(&path).unwrap();
         path

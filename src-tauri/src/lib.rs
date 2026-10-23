@@ -67,6 +67,7 @@ pub fn run() {
             commands::preview,
             commands::rotate_check,
             commands::pdf_compress_estimate,
+            commands::tray_thumbnail,
             commands::pdf_page_upright,
             commands::pdf_page_sizes,
             commands::pdf_thumbnails,
