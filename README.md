@@ -43,10 +43,21 @@ Every action writes a new file next to the original (or into a folder you choose
 ## Install (macOS 12 or later, Apple Silicon or Intel)
 
 1. Download `QuickConvert_<version>_universal.dmg` from the [Releases](https://github.com/Ripun-Build/quickconvert/releases) page and drag **QuickConvert** to **Applications**.
-   **Updating from 0.1?** Quit QuickConvert first (menu bar icon → Quit), then replace it. Your settings and presets carry over.
+   Already have an older version? See [Updating](#updating).
 2. **First launch:** the app isn't notarised by Apple yet, so macOS will say it's from an unidentified developer. Right-click (or Control-click) **QuickConvert** in Applications and choose **Open**, then **Open** again. You only need to do this once.
    On recent macOS versions, if there's no Open button: try to open it once, then go to **System Settings → Privacy & Security** and click **Open Anyway**.
 3. QuickConvert lives in the **menu bar** (no Dock icon). The first time you use it on a Finder selection, macOS asks whether QuickConvert may control Finder: choose **Allow** so it can see which files you've selected.
+
+## Updating
+
+QuickConvert doesn't check for updates by itself yet. To get a new version (for example from 0.1 to 0.2):
+
+1. **Quit QuickConvert first:** menu bar icon → **Quit**. If the old version keeps running, both fight over the shortcut.
+2. Download the new `.dmg` from [Releases](https://github.com/Ripun-Build/quickconvert/releases), drag **QuickConvert** to **Applications** and choose **Replace**.
+3. **Right-click → Open → Open once more.** macOS treats each new version as a new app, so the "unidentified developer" warning comes back one time.
+4. If macOS asks again whether QuickConvert may control Finder, choose **Allow**.
+
+Your settings, presets and *Launch at login* carry over. To hear about new versions, click **Watch → Custom → Releases** on this page.
 
 ## Use
 
