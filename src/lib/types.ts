@@ -9,7 +9,9 @@ export type ErrorCode =
   | "cancelled"
   | "invalid_input"
   | "missing_component"
-  | "internal";
+  | "internal"
+  /** Make PDF smaller couldn't save enough to be worth a copy (reported, not a failure). */
+  | "already_small";
 
 export interface AppError {
   code: ErrorCode;
@@ -135,7 +137,22 @@ export type JobRequest =
   | { action: "image_crop"; rect: CropRect; turn: Turn }
   /** Each image's own turn, keyed by path. */
   | { action: "image_rotate"; turns: Record<string, Turn> }
-  | { action: "strip_metadata" };
+  | { action: "strip_metadata" }
+  /** Parts are lists of 1-based pages. */
+  | { action: "pdf_split"; parts: number[][] }
+  | { action: "pdf_extract"; pages: number[] }
+  /** Quarter turns added to pages, keyed by 1-based page number. */
+  | { action: "pdf_rotate"; turns: Record<string, Turn> }
+  | { action: "pdf_compress"; level: PdfLevel };
+
+/** `pdf_compress::Level` */
+export type PdfLevel = "smallest" | "balanced" | "print";
+
+/** `commands::PdfEstimate`: what Make PDF smaller would give, without saving. */
+export interface PdfEstimate {
+  bytes: number;
+  originalBytes: number;
+}
 
 /** Payload of the `job://progress` event. */
 export interface JobProgress {
@@ -180,6 +197,8 @@ export interface JobDone {
   /** Some output went to Downloads because the folder wasn't writable. */
   savedToFallback: boolean;
   cancelled: boolean;
+  /** Make PDF smaller: files already about as small as they get (no copy saved). */
+  unchanged: string[];
 }
 
 /** `settings::Settings` (SPECS §10). */

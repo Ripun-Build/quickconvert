@@ -65,16 +65,18 @@ test("enabled actions come first within a group", () => {
 });
 
 test("one PDF suggests PDF to images; image actions say they need images", () => {
-  assert.deepEqual(suggested(["pdf"]), ["pdf_to_images"]);
+  assert.deepEqual(suggested(["pdf"]), ["pdf_to_images", "pdf_compress", "pdf_split"]);
   const all = listed(["pdf"]);
   assert.equal(all.image_convert, "Needs images");
   assert.equal(all.pdf_merge, "Needs 2+ PDFs");
-  assert.deepEqual(ids(["pdf"]), ["pdf_to_images"]);
+  assert.deepEqual(ids(["pdf"]), ["pdf_to_images", "pdf_compress", "pdf_split", "pdf_rotate"]);
 });
 
 test("two PDFs suggest merge, and PDF to images works on one at a time", () => {
-  assert.deepEqual(suggested(["pdf", "pdf"]), ["pdf_merge"]);
+  assert.deepEqual(suggested(["pdf", "pdf"]), ["pdf_merge", "pdf_compress"]);
   assert.equal(listed(["pdf", "pdf"]).pdf_to_images, "Works on one PDF at a time");
+  assert.equal(listed(["pdf", "pdf"]).pdf_split, "Works on one PDF at a time");
+  assert.equal(listed(["pdf", "pdf"]).pdf_rotate, "Works on one PDF at a time");
 });
 
 test("mixed images and PDFs are incompatible with per-type groups", () => {
@@ -90,7 +92,7 @@ test("mixed images and PDFs are incompatible with per-type groups", () => {
   );
   assert.deepEqual(
     menu.sections[1].items.map((i) => i.action.id),
-    ["pdf_to_images"],
+    ["pdf_to_images", "pdf_split", "pdf_rotate", "pdf_compress"],
   );
   assert.deepEqual(
     menu.sections[2].items.map((i) => [i.action.id, i.reason]),

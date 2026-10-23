@@ -35,6 +35,44 @@ pub fn combined_pdf_name(first: &Path, count: usize) -> String {
     }
 }
 
+/// `report.pdf` → `report parts` (the folder Split PDF writes).
+pub fn parts_folder_name(pdf: &Path) -> String {
+    format!("{} parts", stem(pdf))
+}
+
+/// `report.pdf` + pages → `report (pages 1-3).pdf`, `report (page 4).pdf`, or for a long list
+/// `report (12 pages).pdf`.
+pub fn pages_pdf_name(pdf: &Path, pages: &[u32]) -> String {
+    let list = compact_pages(pages);
+    let label = if pages.len() == 1 {
+        format!("page {list}")
+    } else if list.len() <= 30 {
+        format!("pages {list}")
+    } else {
+        format!("{} pages", pages.len())
+    };
+    format!("{} ({label}).pdf", stem(pdf))
+}
+
+/// [1, 2, 3, 5] → "1-3, 5" (runs where pages follow on; order kept).
+pub fn compact_pages(pages: &[u32]) -> String {
+    let mut parts = Vec::new();
+    let mut i = 0;
+    while i < pages.len() {
+        let start = pages[i];
+        while i + 1 < pages.len() && pages[i + 1] == pages[i] + 1 {
+            i += 1;
+        }
+        parts.push(if pages[i] == start {
+            start.to_string()
+        } else {
+            format!("{start}-{}", pages[i])
+        });
+        i += 1;
+    }
+    parts.join(", ")
+}
+
 /// `report.pdf` → `report merged.pdf`.
 pub fn merged_pdf_name(first: &Path) -> String {
     format!("{} merged.pdf", stem(first))
@@ -300,5 +338,19 @@ mod tests {
         assert_eq!(b, dir.join("v1.2 pages (1)"));
         assert!(!fell_back);
         fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn page_list_names() {
+        let pdf = Path::new("/x/report.pdf");
+        assert_eq!(pages_pdf_name(pdf, &[1, 2, 3]), "report (pages 1-3).pdf");
+        assert_eq!(pages_pdf_name(pdf, &[4]), "report (page 4).pdf");
+        assert_eq!(
+            pages_pdf_name(pdf, &[2, 5, 6, 7, 9]),
+            "report (pages 2, 5-7, 9).pdf"
+        );
+        let scattered: Vec<u32> = (1..=40).step_by(3).collect();
+        assert_eq!(pages_pdf_name(pdf, &scattered), "report (14 pages).pdf");
+        assert_eq!(parts_folder_name(pdf), "report parts");
     }
 }

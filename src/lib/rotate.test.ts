@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CHECKING, nearestAngle, plan, summary, turnFor, type Check } from "./rotate.ts";
+import { CHECKING, nearestAngle, plan, planTurns, summary, turnFor, type Check } from "./rotate.ts";
 import type { FileInfo } from "./types.ts";
 
 const file = (name: string): FileInfo => ({ path: `/p/${name}`, name, kind: "image", size: 1 });
@@ -59,4 +59,11 @@ test("on-screen angle always moves the short way", () => {
   assert.equal(nearestAngle(270, 0), 360);
   assert.equal(nearestAngle(90, 180), 180);
   assert.equal(nearestAngle(450, 180), 540);
+});
+
+test("pages use the same plan, keyed by page number", () => {
+  const p = planTurns(["1", "2", "3"], { "1": known(90), "2": known(0), "3": unknown(1) }, 0);
+  assert.deepEqual(p.turns, { "1": 90, "3": 90 });
+  assert.deepEqual(p.keys, ["1", "3"]);
+  assert.equal(summary(p, 3), "2 will be turned · 1 already right, skipped");
 });

@@ -495,7 +495,7 @@ pub fn merge_pdfs(paths: &[PathBuf], step: Step<'_>) -> Result<Document, AppErro
 
 /// Copy attributes pages inherit from their page-tree parents onto the pages themselves, since the
 /// original page trees are dropped when merging.
-fn inherit_page_attributes(doc: &mut Document) -> Result<(), AppError> {
+pub(crate) fn inherit_page_attributes(doc: &mut Document) -> Result<(), AppError> {
     for page_id in doc.get_pages().into_values() {
         let mut page = doc.get_dictionary(page_id).map_err(pdf_error)?.clone();
         for key in INHERITABLE {

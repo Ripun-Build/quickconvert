@@ -15,6 +15,8 @@ use crate::convert::crop::{self, CropRect, Turn};
 use crate::convert::image::{self as img, OutputFormat, ResizeMode};
 use crate::convert::metadata::{self, Found};
 use crate::convert::pdf::{self, Margin, PageSize};
+use crate::convert::pdf_compress::{self, Level};
+use crate::convert::pdf_edit;
 use crate::convert::pdf_render::{self, PageSelection};
 use crate::errors::AppError;
 use crate::output::{self, Written};
@@ -63,6 +65,22 @@ pub enum JobRequest {
     },
     /// Remove location, camera, date and other personal info.
     StripMetadata,
+    /// Split one PDF into parts (lists of 1-based pages) in a `<name> parts` folder.
+    PdfSplit {
+        parts: Vec<Vec<u32>>,
+    },
+    /// Keep only these pages (1-based, in order) as a new PDF.
+    PdfExtract {
+        pages: Vec<u32>,
+    },
+    /// Quarter turns added to pages, keyed by 1-based page number (as text: JSON object keys).
+    PdfRotate {
+        turns: HashMap<String, Turn>,
+    },
+    /// Make PDFs smaller (pictures re-saved at the level, extras removed).
+    PdfCompress {
+        level: Level,
+    },
 }
 
 #[derive(Clone, Serialize)]
@@ -116,6 +134,8 @@ pub struct JobDone {
     /// Some output went to Downloads because the input's folder wasn't writable.
     pub saved_to_fallback: bool,
     pub cancelled: bool,
+    /// Make PDF smaller: files already about as small as they get (no copy saved).
+    pub unchanged: Vec<String>,
 }
 
 /// Running jobs and the files they wrote (only those may be opened/revealed from the UI).
@@ -266,6 +286,7 @@ pub fn run(
         failures: Vec::new(),
         saved_to_fallback: false,
         cancelled: false,
+        unchanged: Vec::new(),
     };
     let count = paths.len();
     let is_cancelled = || cancel.load(Ordering::Relaxed);
@@ -298,6 +319,7 @@ pub fn run(
             });
         }
         Err(AppError::Cancelled) => done.cancelled = true,
+        Err(AppError::AlreadySmall) => done.unchanged.push(file_name(path)),
         Err(error) => done.failures.push(Failure {
             name: file_name(path),
             error,
@@ -376,6 +398,21 @@ pub fn run(
                 record(&mut done, pdf, Err(err));
             }
         }
+        // One PDF → edited copies.
+        JobRequest::PdfSplit { .. }
+        | JobRequest::PdfExtract { .. }
+        | JobRequest::PdfRotate { .. } => {
+            let pdf = &paths[0];
+            emit(0, 1, &file_name(pdf), 0.0);
+            let mut written = Vec::new();
+            let result = edit_pdf(request, pdf, places, &is_cancelled, emit, &mut written);
+            for file in written {
+                record(&mut done, pdf, Ok((file, None)));
+            }
+            if let Err(err) = result {
+                record(&mut done, pdf, Err(err));
+            }
+        }
         // One output per input.
         JobRequest::ImageConvert { .. }
         | JobRequest::ImageResize { .. }
@@ -383,7 +420,8 @@ pub fn run(
         | JobRequest::ApplyPreset { .. }
         | JobRequest::ImageCrop { .. }
         | JobRequest::ImageRotate { .. }
-        | JobRequest::StripMetadata => {
+        | JobRequest::StripMetadata
+        | JobRequest::PdfCompress { .. } => {
             // A few files at once; files already started finish when the job is cancelled.
             let results = crate::pool::map(count, places.workers, |i| {
                 if is_cancelled() {
@@ -413,8 +451,12 @@ fn convert_one(
     out_dir: &Path,
     fallback: Option<&Path>,
 ) -> Result<(Written, Option<Detail>), AppError> {
-    if let JobRequest::StripMetadata = request {
-        return strip_one(path, out_dir, fallback);
+    match request {
+        JobRequest::StripMetadata => return strip_one(path, out_dir, fallback),
+        JobRequest::PdfCompress { level } => {
+            return compress_pdf_one(path, *level, out_dir, fallback)
+        }
+        _ => {}
     }
     let picture = img::load(path)?;
     let icc = picture.icc.as_deref();
@@ -479,6 +521,102 @@ fn write_same_format(
     let name = output::suffixed_name(path, suffix, &img::same_format_extension(path));
     let written = output::write_output(out_dir, fallback, &name, |w| Ok(w.write_all(&bytes)?))?;
     Ok((written, Some(detail_of(image, quality))))
+}
+
+/// Split, pick pages or rotate pages of one PDF. Split writes a `<name> parts` folder (removed
+/// again if nothing got written); the others write one PDF next to the original.
+fn edit_pdf(
+    request: &JobRequest,
+    pdf: &Path,
+    places: &Places<'_>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    emit: Emit<'_>,
+    written: &mut Vec<Written>,
+) -> Result<(), AppError> {
+    let out_dir = places.dir_for(pdf);
+    let write = |dir: &Path, fallback: Option<&Path>, name: &str, bytes: &[u8]| {
+        output::write_output(dir, fallback, name, |w| Ok(w.write_all(bytes)?))
+    };
+    let mut doc = pdf_edit::open(pdf)?;
+    match request {
+        JobRequest::PdfExtract { pages } => {
+            let bytes = pdf_edit::save(&mut pdf_edit::keep_pages(&doc, pages)?)?;
+            let name = output::pages_pdf_name(pdf, pages);
+            written.push(write(out_dir, places.fallback, &name, &bytes)?);
+        }
+        JobRequest::PdfRotate { turns } => {
+            if turns.values().all(|t| *t == Turn::None) {
+                return Err(AppError::invalid(
+                    "Nothing to turn: every page is already the way you picked.",
+                ));
+            }
+            let turns = turns
+                .iter()
+                .map(|(page, turn)| {
+                    Ok((
+                        page.parse::<u32>()
+                            .map_err(|_| AppError::internal("bad page"))?,
+                        *turn,
+                    ))
+                })
+                .collect::<Result<HashMap<u32, Turn>, AppError>>()?;
+            pdf_edit::rotate_pages(&mut doc, &turns)?;
+            let bytes = pdf_edit::save(&mut doc)?;
+            let name = output::suffixed_name(pdf, "rotated", "pdf");
+            written.push(write(out_dir, places.fallback, &name, &bytes)?);
+        }
+        JobRequest::PdfSplit { parts } => {
+            if parts.len() < 2 {
+                return Err(AppError::invalid("Add at least one cut to split the PDF."));
+            }
+            // Build the parts a few at a time, then write them in order.
+            let count = parts.len();
+            let built = crate::pool::map(count, places.workers, |i| {
+                if cancelled() {
+                    return Err(AppError::Cancelled);
+                }
+                emit(i, count, &format!("Part {}", i + 1), percent(i, count));
+                pdf_edit::save(&mut pdf_edit::keep_pages(&doc, &parts[i])?)
+            });
+            let (folder, fell_back) =
+                output::create_folder(out_dir, places.fallback, &output::parts_folder_name(pdf))?;
+            let result = (|| -> Result<(), AppError> {
+                for (pages, bytes) in parts.iter().zip(built) {
+                    let bytes =
+                        bytes.unwrap_or_else(|| Err(AppError::internal("part worker stopped")))?;
+                    let mut file =
+                        write(&folder, None, &output::pages_pdf_name(pdf, pages), &bytes)?;
+                    file.fell_back = fell_back;
+                    written.push(file);
+                }
+                Ok(())
+            })();
+            if written.is_empty() {
+                let _ = std::fs::remove_dir(&folder); // only if still empty
+            }
+            result?;
+        }
+        _ => return Err(AppError::internal("not a PDF edit")),
+    }
+    Ok(())
+}
+
+/// Make one PDF smaller into `<name>-compressed.pdf`, unless it would save under 5 %.
+fn compress_pdf_one(
+    path: &Path,
+    level: Level,
+    out_dir: &Path,
+    fallback: Option<&Path>,
+) -> Result<(Written, Option<Detail>), AppError> {
+    // Pictures inside one PDF two at a time (files already run in parallel).
+    let bytes = pdf_compress::compress_pdf(path, level, 2)?;
+    let original = std::fs::metadata(path)?.len() as f64;
+    if bytes.len() as f64 > original * (1.0 - pdf_compress::MIN_SAVING) {
+        return Err(AppError::AlreadySmall);
+    }
+    let name = output::suffixed_name(path, "compressed", "pdf");
+    let written = output::write_output(out_dir, fallback, &name, |w| Ok(w.write_all(&bytes)?))?;
+    Ok((written, None))
 }
 
 fn detail_of(image: &image::DynamicImage, quality: Option<u8>) -> Detail {
@@ -879,6 +1017,85 @@ mod tests {
     }
 
     #[test]
+    fn pdf_split_pick_rotate_and_compress() {
+        let dir = temp_dir("pdf-tools");
+        let pdf = crate::convert::pdf_edit::tests::numbered_pdf(&dir, 5);
+        let before = snapshot(std::slice::from_ref(&pdf));
+
+        let split = run_quiet(
+            JobRequest::PdfSplit {
+                parts: vec![vec![1, 2], vec![3], vec![4, 5]],
+            },
+            std::slice::from_ref(&pdf),
+        );
+        assert!(split.failures.is_empty(), "{:?}", split.failures);
+        assert_eq!(
+            names(&split),
+            [
+                "doc (pages 1-2).pdf",
+                "doc (page 3).pdf",
+                "doc (pages 4-5).pdf"
+            ]
+        );
+        assert!(split.outputs.iter().all(|o| o.path.contains("/doc parts/")));
+
+        let picked = run_quiet(
+            JobRequest::PdfExtract { pages: vec![2, 5] },
+            std::slice::from_ref(&pdf),
+        );
+        assert_eq!(names(&picked), ["doc (pages 2, 5).pdf"]);
+        let kept = lopdf::Document::load(&picked.outputs[0].path).unwrap();
+        assert_eq!(crate::convert::pdf_edit::tests::widths(&kept), [110, 140]);
+
+        let rotated = run_quiet(
+            JobRequest::PdfRotate {
+                turns: HashMap::from([("1".to_string(), Turn::Right)]),
+            },
+            std::slice::from_ref(&pdf),
+        );
+        assert_eq!(names(&rotated), ["doc-rotated.pdf"]);
+        let nothing = run_quiet(
+            JobRequest::PdfRotate {
+                turns: HashMap::from([("1".to_string(), Turn::None)]),
+            },
+            std::slice::from_ref(&pdf),
+        );
+        assert_eq!(nothing.failures[0].error.code(), "invalid_input");
+        let one_part = run_quiet(
+            JobRequest::PdfSplit {
+                parts: vec![vec![1, 2, 3, 4, 5]],
+            },
+            std::slice::from_ref(&pdf),
+        );
+        assert_eq!(one_part.failures[0].error.code(), "invalid_input");
+        assert!(
+            !dir.join("doc parts (1)").exists(),
+            "no empty folder left behind"
+        );
+
+        // Make smaller: the scan shrinks, the plain-text letter is reported as already small.
+        let scan = crate::convert::pdf_compress::tests::scan_pdf(&dir, 1);
+        let letter = crate::convert::pdf_compress::tests::text_pdf(&dir);
+        let compressed = run_quiet(
+            JobRequest::PdfCompress {
+                level: Level::Balanced,
+            },
+            &[scan.clone(), letter.clone()],
+        );
+        assert!(compressed.failures.is_empty(), "{:?}", compressed.failures);
+        assert_eq!(names(&compressed), ["scan-compressed.pdf"]);
+        assert_eq!(compressed.unchanged, ["letter.pdf"]);
+        assert!(compressed.outputs[0].bytes < fs::metadata(&scan).unwrap().len() / 3);
+
+        assert_eq!(
+            snapshot(std::slice::from_ref(&pdf)),
+            before,
+            "original untouched"
+        );
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
     fn batches_continue_past_failures() {
         let dir = temp_dir("failures");
         let mut inputs = fixtures(&dir);
@@ -999,6 +1216,25 @@ mod tests {
                     ("/a/b.jpg".to_string(), Turn::Half),
                     ("/a/c.png".to_string(), Turn::Right)
                 ])
+            }
+        );
+        let r: JobRequest =
+            serde_json::from_str(r#"{"action":"pdf_rotate","turns":{"1":90,"3":270}}"#).unwrap();
+        assert_eq!(
+            r,
+            JobRequest::PdfRotate {
+                turns: HashMap::from([
+                    ("1".to_string(), Turn::Right),
+                    ("3".to_string(), Turn::Left)
+                ])
+            }
+        );
+        let r: JobRequest =
+            serde_json::from_str(r#"{"action":"pdf_compress","level":"smallest"}"#).unwrap();
+        assert_eq!(
+            r,
+            JobRequest::PdfCompress {
+                level: Level::Smallest
             }
         );
         let r: JobRequest = serde_json::from_str(r#"{"action":"strip_metadata"}"#).unwrap();

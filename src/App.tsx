@@ -33,11 +33,14 @@ import { ErrorView } from "./views/ErrorView";
 import { OptionsSheet } from "./views/OptionsSheet";
 import { CompressView } from "./views/CompressView";
 import { CropEditor } from "./views/CropEditor";
+import { PageRotateView } from "./views/PageRotateView";
+import { PdfCompressView } from "./views/PdfCompressView";
 import { PdfPagesEditor } from "./views/PdfPagesEditor";
 import { PresetView } from "./views/PresetView";
 import { ResizeEditor } from "./views/ResizeEditor";
 import { Result } from "./views/Result";
 import { RotateView } from "./views/RotateView";
+import { SplitEditor } from "./views/SplitEditor";
 import { Running } from "./views/Running";
 
 const TRANSFORM_ORIGIN: Record<PopupOrigin, string> = {
@@ -71,6 +74,9 @@ type View =
   | { name: "resize"; set: FileSet; action: ActionDef; files: FileInfo[] }
   | { name: "crop"; set: FileSet; action: ActionDef; files: FileInfo[] }
   | { name: "rotate"; set: FileSet; action: ActionDef; files: FileInfo[] }
+  | { name: "split"; set: FileSet; action: ActionDef; files: FileInfo[] }
+  | { name: "pagerotate"; set: FileSet; action: ActionDef; files: FileInfo[] }
+  | { name: "pdfcompress"; set: FileSet; action: ActionDef; files: FileInfo[] }
   | { name: "pages"; set: FileSet; action: ActionDef; files: FileInfo[] }
   | { name: "compress"; set: FileSet; action: ActionDef; files: FileInfo[] }
   | { name: "preset"; set: FileSet; action: ActionDef; files: FileInfo[] }
@@ -96,6 +102,9 @@ const DEPTH: Record<View["name"], number> = {
   resize: 1,
   crop: 1,
   rotate: 1,
+  split: 1,
+  pagerotate: 1,
+  pdfcompress: 1,
   pages: 1,
   compress: 1,
   preset: 1,
@@ -112,6 +121,9 @@ const FOOTER: Record<View["name"], string> = {
   resize: "drag the handles or type a size · ↵ resize · esc back",
   crop: "drag the box or its handles · ↵ crop · esc back",
   rotate: "click a picture to turn it · ↵ rotate · esc back",
+  split: "click pages · ↵ save · esc back",
+  pagerotate: "click a page to turn it · ↵ rotate · esc back",
+  pdfcompress: "↵ make smaller · esc back",
   pages: "click pages to pick · shift-click for a range · esc back",
   compress: "↵ compress · esc back",
   preset: "↵ apply · esc back",
@@ -178,7 +190,8 @@ function App() {
     (done: JobDone) => {
       jobId.current = null;
       const set = lastJob.current?.set ?? { files: [], unsupported: 0 };
-      const ok = !done.cancelled && done.failures.length === 0 && done.outputs.length > 0;
+      const ok =
+        !done.cancelled && done.failures.length === 0 && (done.outputs.length > 0 || done.unchanged.length > 0);
       go(ok ? { name: "result", set, done } : { name: "error", set, done });
     },
     [go],
@@ -216,6 +229,7 @@ function App() {
           failures: [{ name: job.files[0]?.name ?? "", error }],
           savedToFallback: false,
           cancelled: false,
+          unchanged: [],
         });
       }
     },
@@ -288,7 +302,7 @@ function App() {
   }, [showCount]);
 
   // Fit the window to the content: editors are wider (SPECS §5), height follows the content.
-  const wide = view.name === "resize" || view.name === "crop" || view.name === "pages";
+  const wide = ["resize", "crop", "pages", "split", "pagerotate"].includes(view.name);
   useLayoutEffect(() => {
     const el = contentRef.current;
     if (!el) return;
@@ -337,7 +351,12 @@ function App() {
       }
       if (e.key !== "Escape") return;
       const name = viewRef.current.name;
-      if (["options", "resize", "crop", "rotate", "pages", "compress", "preset", "error"].includes(name)) back();
+      if (
+        ["options", "resize", "crop", "rotate", "split", "pagerotate", "pdfcompress", "pages", "compress", "preset", "error"].includes(
+          name,
+        )
+      )
+        back();
       else if (name === "running") cancel();
     };
     window.addEventListener("keydown", onKey);
@@ -368,6 +387,9 @@ function App() {
     if (action.id === "image_resize") go({ name: "resize", set, action, files });
     else if (action.id === "image_crop") go({ name: "crop", set, action, files });
     else if (action.id === "image_rotate") go({ name: "rotate", set, action, files });
+    else if (action.id === "pdf_split") go({ name: "split", set, action, files });
+    else if (action.id === "pdf_rotate") go({ name: "pagerotate", set, action, files });
+    else if (action.id === "pdf_compress") go({ name: "pdfcompress", set, action, files });
     else if (action.id === "pdf_to_images") go({ name: "pages", set, action, files });
     else if (action.id === "image_compress") go({ name: "compress", set, action, files });
     else if (action.id === "apply_preset") go({ name: "preset", set, action, files });
@@ -387,6 +409,7 @@ function App() {
       "image_crop",
       "image_rotate",
       "strip_metadata",
+      "pdf_compress",
       "image_compress",
       "apply_preset",
     ].includes(job.request.action);
@@ -503,7 +526,10 @@ interface BodyProps {
   onLaunch: (view: Extract<View, { name: "options" }>, values: OptionValues) => void;
   /** Run a request built by an editor view (resize, crop, rotate, PDF pages, compress, presets). */
   onEditorRun: (
-    view: Extract<View, { name: "resize" | "crop" | "rotate" | "pages" | "compress" | "preset" }>,
+    view: Extract<
+      View,
+      { name: "resize" | "crop" | "rotate" | "split" | "pagerotate" | "pdfcompress" | "pages" | "compress" | "preset" }
+    >,
     request: JobRequest,
     /** Only these files (Rotate skips images that are already right); default: the view's files. */
     files?: FileInfo[],
@@ -549,6 +575,12 @@ function Body(props: BodyProps) {
       return (
         <RotateView files={view.files} onBack={onBack} onRun={(request, files) => onEditorRun(view, request, files)} />
       );
+    case "split":
+      return <SplitEditor file={view.files[0]} onBack={onBack} onRun={(request) => onEditorRun(view, request)} />;
+    case "pagerotate":
+      return <PageRotateView file={view.files[0]} onBack={onBack} onRun={(request) => onEditorRun(view, request)} />;
+    case "pdfcompress":
+      return <PdfCompressView files={view.files} onBack={onBack} onRun={(request) => onEditorRun(view, request)} />;
     case "compress":
       return <CompressView files={view.files} onBack={onBack} onRun={(request) => onEditorRun(view, request)} />;
     case "preset":

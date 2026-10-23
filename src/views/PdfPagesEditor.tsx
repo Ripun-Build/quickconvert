@@ -1,14 +1,13 @@
 // PDF → images: pick pages on thumbnails or by typing "1-3, 5" (both stay in sync), choose a
 // format and a size named for what it's for (Screen / Standard / Print), each with a short description.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronLeft } from "lucide-react";
 import { Button } from "../components/Button";
+import { PageGrid } from "../components/PageGrid";
 import { Segmented } from "../components/Segmented";
-import { isAppError, pdfPageSizes, pdfThumbnails } from "../lib/ipc";
+import { isAppError, pdfPageSizes } from "../lib/ipc";
 import { SIZES, allPages, clickPage, formatPages, parsePages, pixels } from "../lib/pages";
 import type { FileInfo, JobRequest, PdfPageSize } from "../lib/types";
-
-const THUMB_BATCH = 12;
 
 const FORMAT_HINTS = {
   jpg: "Smaller files. Best for photos and scans.",
@@ -109,10 +108,23 @@ export function PdfPagesEditor({ file, defaultDpi = 150, onBack, onRun }: Props)
           <PageGrid
             path={file.path}
             sizes={sizes}
-            selected={selected}
-            onClick={(page, shift) => {
+            look={(page) => {
+              const on = selected.has(page);
+              return {
+                label: `Page ${page}`,
+                pressed: on,
+                ring: on,
+                faded: !on,
+                badge: on ? (
+                  <span className="flex size-4 items-center justify-center rounded-pill bg-accent text-on-accent">
+                    <Check size={11} strokeWidth={3} />
+                  </span>
+                ) : undefined,
+              };
+            }}
+            onClick={(page, e) => {
               setTyping(false);
-              setSelected((s) => clickPage(s, page, anchor, shift));
+              setSelected((s) => clickPage(s, page, anchor, e.shiftKey));
               setAnchor(page);
             }}
           />
@@ -212,105 +224,5 @@ function Chip({ children, onClick }: { children: React.ReactNode; onClick: () =>
     >
       {children}
     </button>
-  );
-}
-
-/** Thumbnails load in batches as their tiles scroll into view. */
-function PageGrid({
-  path,
-  sizes,
-  selected,
-  onClick,
-}: {
-  path: string;
-  sizes: PdfPageSize[] | null;
-  selected: Set<number>;
-  onClick: (page: number, shift: boolean) => void;
-}) {
-  const [thumbs, setThumbs] = useState<Record<number, string>>({});
-  const requested = useRef(new Set<number>());
-  const queue = useRef<number[]>([]);
-  const busy = useRef(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  const pump = useCallback(() => {
-    if (busy.current || queue.current.length === 0) return;
-    const batch = queue.current.splice(0, THUMB_BATCH);
-    busy.current = true;
-    pdfThumbnails(path, batch)
-      .then((urls) => setThumbs((t) => ({ ...t, ...Object.fromEntries(batch.map((p, i) => [p, urls[i]])) })))
-      .catch(() => {})
-      .finally(() => {
-        busy.current = false;
-        pump();
-      });
-  }, [path]);
-
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root || !sizes) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          const page = Number((entry.target as HTMLElement).dataset.page);
-          if (entry.isIntersecting && !requested.current.has(page)) {
-            requested.current.add(page);
-            queue.current.push(page);
-          }
-        }
-        queue.current.sort((a, b) => a - b);
-        pump();
-      },
-      { root, rootMargin: "200px" },
-    );
-    root.querySelectorAll("[data-page]").forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-  }, [sizes, pump]);
-
-  return (
-    <div ref={rootRef} className="h-[300px] min-w-0 flex-1 overflow-y-auto rounded-card bg-surface p-2">
-      {!sizes ? (
-        <div className="grid grid-cols-4 gap-2">
-          {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
-            <div key={i} className="skeleton aspect-[3/4] rounded-control" />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-4 gap-2">
-          {sizes.map((size, i) => {
-            const page = i + 1;
-            const on = selected.has(page);
-            return (
-              <button
-                key={page}
-                type="button"
-                data-page={page}
-                aria-pressed={on}
-                aria-label={`Page ${page}`}
-                onClick={(e) => onClick(page, e.shiftKey)}
-                className="group flex flex-col items-center gap-1 rounded-control p-1 hover:bg-surface-hover"
-              >
-                <div className="relative flex aspect-[3/4] w-full items-center justify-center">
-                  <div
-                    className={`relative max-h-full max-w-full overflow-hidden rounded-kbd bg-surface-raised shadow-control transition-opacity ${
-                      on ? "ring-2 ring-accent" : "opacity-55"
-                    }`}
-                    style={{ aspectRatio: `${size.width} / ${size.height}`, height: size.height >= size.width ? "100%" : undefined, width: size.width > size.height ? "100%" : undefined }}
-                  >
-                    {thumbs[page] && <img src={thumbs[page]} alt="" draggable={false} className="size-full object-cover" />}
-                  </div>
-                  {on && (
-                    <span className="absolute top-0.5 right-0.5 flex size-4 items-center justify-center rounded-pill bg-accent text-on-accent">
-                      <Check size={11} strokeWidth={3} />
-                    </span>
-                  )}
-                </div>
-                <span className={`type-caption tabular-nums ${on ? "text-primary" : "text-tertiary"}`}>{page}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
   );
 }

@@ -31,6 +31,11 @@ pub enum AppError {
 
     #[error("Something went wrong. Please try again.")]
     Internal { detail: String },
+
+    /// Make PDF smaller couldn't save enough to be worth a copy. Not a failure: reported as
+    /// "unchanged".
+    #[error("Already about as small as it gets.")]
+    AlreadySmall,
 }
 
 impl AppError {
@@ -45,6 +50,7 @@ impl AppError {
             AppError::InvalidInput { .. } => "invalid_input",
             AppError::MissingComponent { .. } => "missing_component",
             AppError::Internal { .. } => "internal",
+            AppError::AlreadySmall => "already_small",
         }
     }
 }

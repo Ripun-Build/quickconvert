@@ -17,6 +17,9 @@ import type {
   Preset,
   Preview,
   RotateCheck,
+  PdfEstimate,
+  PdfLevel,
+  Turn,
   Settings,
   SettingsView,
 } from "./types";
@@ -74,6 +77,13 @@ export const thumbnail = (path: string) => call<string>("thumbnail", { path });
 
 /** Rotate view: thumbnail (longest side `size` px) and which way is up, if it can tell. */
 export const rotateCheck = (path: string, size: number) => call<RotateCheck>("rotate_check", { path, size });
+
+/** Make PDF smaller: the result size for `level`, measured without saving. */
+export const pdfCompressEstimate = (path: string, level: PdfLevel) =>
+  call<PdfEstimate>("pdf_compress_estimate", { path, level });
+
+/** Rotate pages: clockwise degrees that make the page straight (as it shows now), or null. */
+export const pdfPageUpright = (path: string, page: number) => call<Turn | null>("pdf_page_upright", { path, page });
 
 /** Larger preview for editors, plus the image's upright size in px. */
 export const preview = (path: string) => call<Preview>("preview", { path });

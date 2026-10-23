@@ -25,6 +25,14 @@ export function Result({ done, autoHide, onAutoHide }: { done: JobDone; autoHide
   const single = outputs.length === 1;
   const total = done.outputs.reduce((sum, o) => sum + o.bytes, 0);
   const removed = describeRemoved(done.outputs);
+  // Make PDF smaller: files that were already about as small as they get (nothing saved for them).
+  const unchanged = done.unchanged ?? [];
+  const unchangedNote =
+    unchanged.length === 0
+      ? undefined
+      : unchanged.length === 1
+        ? `“${truncateMiddle(unchanged[0], 32)}” was already about as small as it gets, so no copy was saved.`
+        : `${unchanged.length} PDFs were already about as small as they get, so no copies were saved.`;
 
   useEffect(() => {
     // Stay open while the user is pointing at it, or when there's a note to read.
@@ -42,6 +50,27 @@ export function Result({ done, autoHide, onAutoHide }: { done: JobDone; autoHide
       })
       .catch(() => {});
   };
+
+  if (outputs.length === 0) {
+    return (
+      <div
+        className="flex flex-col gap-3 px-4 pb-3"
+        onMouseEnter={() => setEngaged(true)}
+        onMouseLeave={() => setEngaged(false)}
+        onFocus={() => setEngaged(true)}
+        aria-live="polite"
+      >
+        <div className="flex items-center gap-3">
+          <CheckMark />
+          <div className="min-w-0">
+            <h2 className="type-title text-primary">Already small</h2>
+            <p className="type-caption text-secondary">{unchangedNote}</p>
+          </div>
+        </div>
+        <Button onClick={onAutoHide}>Done</Button>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -62,6 +91,7 @@ export function Result({ done, autoHide, onAutoHide }: { done: JobDone; autoHide
             {single ? describeOutput(done.outputs[0]) : `${formatBytes(total)} in total`}
           </p>
           {removed && <p className="type-caption text-secondary">{removed}</p>}
+          {unchangedNote && <p className="type-caption text-secondary">{unchangedNote}</p>}
         </div>
       </div>
       {done.savedToFallback && (

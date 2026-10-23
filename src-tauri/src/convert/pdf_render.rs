@@ -206,6 +206,24 @@ pub fn page_thumbnails(
         .collect()
 }
 
+/// Page `number` (1-based) as it shows on screen (its rotation applied), longest side `max_px`.
+pub fn page_image(
+    pdfium: &Pdfium,
+    pdf: &Path,
+    number: u32,
+    max_px: u32,
+) -> Result<image::DynamicImage, AppError> {
+    let _render = RENDER_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+    let document = pdfium.load_pdf_from_file(pdf, None).map_err(pdfium_error)?;
+    let page = document
+        .pages()
+        .get(number.saturating_sub(1) as PdfPageIndex)
+        .map_err(pdfium_error)?;
+    let longest = page.width().value.max(page.height().value).max(1.0);
+    let dpi = (72.0 * max_px as f32 / longest).clamp(1.0, f32::from(u16::MAX));
+    render_page(&page, dpi as u16)
+}
+
 fn render_page(page: &PdfPage, dpi: u16) -> Result<image::DynamicImage, AppError> {
     let scale = f32::from(dpi) / 72.0;
     let (w, h) = (page.width().value * scale, page.height().value * scale);

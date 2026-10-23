@@ -45,14 +45,24 @@ export interface Plan {
   checking: number;
 }
 
-export function plan(files: FileInfo[], checks: Record<string, Check>, target: Turn): Plan {
+export interface TurnPlan {
+  /** Keys that need turning, in order, with their turns. */
+  keys: string[];
+  turns: Record<string, Turn>;
+  unchanged: number;
+  unknown: number;
+  checking: number;
+}
+
+/** The turn for each key (an image path, or a page number) so everything ends up as `target`. */
+export function planTurns(keys: readonly string[], checks: Record<string, Check>, target: Turn): TurnPlan {
   const turns: Record<string, Turn> = {};
-  const toTurn: FileInfo[] = [];
+  const toTurn: string[] = [];
   let unchanged = 0;
   let unknown = 0;
   let checking = 0;
-  for (const file of files) {
-    const check = checks[file.path] ?? CHECKING;
+  for (const key of keys) {
+    const check = checks[key] ?? CHECKING;
     const unsure = !check.checking && check.upright === null && check.extra === 0;
     if (check.checking) checking++;
     else if (unsure) unknown++;
@@ -61,17 +71,34 @@ export function plan(files: FileInfo[], checks: Record<string, Check>, target: T
       if (!check.checking && !unsure) unchanged++;
       continue;
     }
-    turns[file.path] = turn;
-    toTurn.push(file);
+    turns[key] = turn;
+    toTurn.push(key);
   }
-  return { files: toTurn, request: { action: "image_rotate", turns }, unchanged, unknown, checking };
+  return { keys: toTurn, turns, unchanged, unknown, checking };
+}
+
+export function plan(files: FileInfo[], checks: Record<string, Check>, target: Turn): Plan {
+  const p = planTurns(
+    files.map((f) => f.path),
+    checks,
+    target,
+  );
+  const toTurn = new Set(p.keys);
+  return {
+    files: files.filter((f) => toTurn.has(f.path)),
+    request: { action: "image_rotate", turns: p.turns },
+    unchanged: p.unchanged,
+    unknown: p.unknown,
+    checking: p.checking,
+  };
 }
 
 /** One line under the grid, e.g. "3 will be turned · 1 already right · 1 couldn't tell (click it to turn)". */
-export function summary(p: Plan, total: number): string {
+export function summary(p: Plan | TurnPlan, total: number): string {
   if (p.checking > 0) return `Checking which way is up… ${total - p.checking} of ${total}`;
+  const toTurn = "files" in p ? p.files.length : p.keys.length;
   const parts = [];
-  if (p.files.length > 0) parts.push(`${p.files.length} will be turned`);
+  if (toTurn > 0) parts.push(`${toTurn} will be turned`);
   if (p.unchanged > 0) parts.push(`${p.unchanged} already right, skipped`);
   if (p.unknown > 0) parts.push(`${p.unknown} couldn't tell (click to turn)`);
   return parts.join(" · ");

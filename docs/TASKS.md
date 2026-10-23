@@ -98,7 +98,9 @@ v0.1.0 is public, so Phase 2 ships as an update of the same app: settings and pr
 - [x] Speed: batches and PDF pages 4 at a time, HEIC thumbnails/checks from small `sips` copies, fewer JPG encodes (50 HEIC → PDF: 22 s → 4.5 s)
 
 ### M10 — PDF tools
-- [ ] `pdf_split`, `pdf_rotate`, `pdf_compress`
+- [x] Split PDF (`pdf_split`): click where parts start or Every page / 2 / 3, parts into a `<name> parts` folder; Keep pages (`pdf_extract`) → one new PDF
+- [x] Rotate pages (`pdf_rotate`): page grid with the same Straight / Left / Right / Upside down detection as images; lossless `/Rotate`
+- [x] Make PDF smaller (`pdf_compress`): Smallest / Balanced / Print with a live size, pictures scaled to the page and re-saved, extras removed; "already small" reported, not failed
 
 ### M11 — PageTray
 - [ ] PageTray (reorder/rotate/remove before PDF)

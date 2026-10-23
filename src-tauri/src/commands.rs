@@ -72,6 +72,50 @@ pub async fn rotate_check(
     blocking(move || crate::upright::check(&PathBuf::from(path), size.clamp(64, 1024))).await
 }
 
+/// Make PDF smaller: what `level` would give for this PDF, without saving anything.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PdfEstimate {
+    pub bytes: u64,
+    pub original_bytes: u64,
+}
+
+#[tauri::command]
+pub async fn pdf_compress_estimate(
+    path: String,
+    level: crate::convert::pdf_compress::Level,
+) -> Result<PdfEstimate, AppError> {
+    blocking(move || {
+        let path = PathBuf::from(path);
+        let bytes = crate::convert::pdf_compress::compress_pdf(
+            &path,
+            level,
+            crate::pool::default_workers(),
+        )?;
+        Ok(PdfEstimate {
+            bytes: bytes.len() as u64,
+            original_bytes: std::fs::metadata(&path)?.len(),
+        })
+    })
+    .await
+}
+
+/// Rotate pages: clockwise degrees that make page `page` (1-based, as it shows now) straight;
+/// None = can't tell.
+#[tauri::command]
+pub async fn pdf_page_upright(
+    app: AppHandle,
+    path: String,
+    page: u32,
+) -> Result<Option<u16>, AppError> {
+    blocking(move || {
+        let lib = pdf_render::pdfium(&jobs::pdfium_dirs(&app))?;
+        let image = pdf_render::page_image(lib, &PathBuf::from(path), page, 1280)?;
+        Ok(crate::upright::detect(&image).map(crate::convert::crop::Turn::degrees))
+    })
+    .await
+}
+
 /// Start moving the popup with the mouse (pressed on its header).
 #[tauri::command]
 pub fn drag_popup(app: AppHandle) -> Result<(), AppError> {

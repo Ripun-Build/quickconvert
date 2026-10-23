@@ -10,6 +10,7 @@ import {
   Minimize2,
   RotateCw,
   Scaling,
+  Scissors,
   SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
@@ -24,6 +25,9 @@ const ICONS: Record<ActionId, LucideIcon> = {
   image_crop: Crop,
   image_rotate: RotateCw,
   strip_metadata: MapPinOff,
+  pdf_split: Scissors,
+  pdf_rotate: RotateCw,
+  pdf_compress: Minimize2,
   image_compress: Minimize2,
   pdf_merge: Layers,
   apply_preset: SlidersHorizontal,

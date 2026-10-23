@@ -14,6 +14,9 @@ export type ActionId =
   | "strip_metadata"
   | "image_compress"
   | "pdf_merge"
+  | "pdf_split"
+  | "pdf_rotate"
+  | "pdf_compress"
   | "apply_preset";
 
 export type ActionGroup = "convert" | "edit" | "compress";
@@ -97,12 +100,38 @@ export const ACTIONS: readonly ActionDef[] = [
     keywords: ["privacy", "metadata", "exif", "gps", "location", "camera", "strip", "clean", "private"],
   },
   {
+    id: "pdf_split",
+    label: "Split PDF",
+    group: "edit",
+    input: "pdf",
+    minFiles: 1,
+    maxFiles: 1,
+    keywords: ["cut", "separate", "extract", "pages", "keep", "remove", "pick"],
+  },
+  {
+    id: "pdf_rotate",
+    label: "Rotate pages",
+    group: "edit",
+    input: "pdf",
+    minFiles: 1,
+    maxFiles: 1,
+    keywords: ["turn", "sideways", "upright", "orientation", "straighten"],
+  },
+  {
     id: "image_compress",
     label: "Compress",
     group: "compress",
     input: "image",
     minFiles: 1,
     keywords: ["shrink", "size", "kb", "reduce", "smaller"],
+  },
+  {
+    id: "pdf_compress",
+    label: "Make PDF smaller",
+    group: "compress",
+    input: "pdf",
+    minFiles: 1,
+    keywords: ["compress", "shrink", "reduce", "size", "email", "mb"],
   },
   {
     id: "apply_preset",
@@ -124,8 +153,8 @@ const byId = (id: ActionId): ActionDef => {
 const SUGGESTED: Record<"oneImage" | "manyImages" | "onePdf" | "manyPdfs", ActionId[]> = {
   oneImage: ["image_convert", "image_compress", "image_resize", "images_to_pdf"],
   manyImages: ["images_to_pdf", "image_compress", "image_resize"],
-  onePdf: ["pdf_to_images"],
-  manyPdfs: ["pdf_merge"],
+  onePdf: ["pdf_to_images", "pdf_compress", "pdf_split"],
+  manyPdfs: ["pdf_merge", "pdf_compress"],
 };
 
 const GROUP_TITLES: Record<ActionGroup, string> = {
@@ -360,6 +389,31 @@ export const ACTION_SPECS: Partial<Record<ActionId, ActionSpec>> = {
     // The rotate view supplies the direction.
     toRequest: () => {
       throw new Error("image_rotate needs a direction");
+    },
+  },
+  pdf_split: {
+    submit: "Split",
+    defaults: {},
+    fields: [],
+    // The split editor supplies the parts or pages.
+    toRequest: () => {
+      throw new Error("pdf_split needs parts");
+    },
+  },
+  pdf_rotate: {
+    submit: "Rotate",
+    defaults: {},
+    fields: [],
+    toRequest: () => {
+      throw new Error("pdf_rotate needs turns");
+    },
+  },
+  pdf_compress: {
+    submit: "Make smaller",
+    defaults: {},
+    fields: [],
+    toRequest: () => {
+      throw new Error("pdf_compress needs a level");
     },
   },
   strip_metadata: {
