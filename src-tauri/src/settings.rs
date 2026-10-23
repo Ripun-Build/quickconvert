@@ -148,6 +148,35 @@ mod tests {
     }
 
     #[test]
+    fn settings_saved_by_v0_1_0_load_unchanged() {
+        // Exactly what v0.1.0 wrote, with every value changed from its default. Updates must keep
+        // reading it: add new fields with defaults, never rename or remove old ones.
+        let dir = temp_dir("v010");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{"shortcut":"Control+Alt+K","output":{"kind":"folder","path":"/Users/someone/Converted"},"jpegQuality":70,"resizeLongEdge":1200,"pdfDpi":300,"appearance":"dark","autoHide":false}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            load(&path),
+            Settings {
+                shortcut: Some("Control+Alt+K".into()),
+                output: OutputLocation::Folder {
+                    path: "/Users/someone/Converted".into()
+                },
+                jpeg_quality: 70,
+                resize_long_edge: 1200,
+                pdf_dpi: 300,
+                appearance: Appearance::Dark,
+                auto_hide: false,
+            }
+        );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
     fn missing_or_broken_file_gives_defaults() {
         let dir = temp_dir("broken");
         assert_eq!(load(&dir.join("settings.json")), Settings::default());

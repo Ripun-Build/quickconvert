@@ -153,6 +153,51 @@ mod tests {
     }
 
     #[test]
+    fn presets_saved_by_v0_1_0_load_unchanged() {
+        // A v0.1.0 presets.json: an edited built-in, a deleted built-in and one of the user's own.
+        let dir = std::env::temp_dir().join(format!("qc-presets-v010-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let user = dir.join("presets.json");
+        std::fs::write(
+            &user,
+            r#"{"presets":[
+                {"id":"signature_example","label":"Signature for the bank","format":"jpg","width":140,"height":60,"minKB":10,"maxKB":20,"dpi":200},
+                {"id":"my-photo","label":"My photo","format":"jpg","aspect":"3:4","longEdge":900,"maxKB":100,"note":"For the club form"}
+            ],"removed":["whatsapp_sharp"]}"#,
+        )
+        .unwrap();
+        let presets = load(&[shipped()], Some(&user));
+        assert!(
+            presets.iter().all(|p| p.id != "whatsapp_sharp"),
+            "deleted built-in stays deleted"
+        );
+        let sig = presets
+            .iter()
+            .find(|p| p.id == "signature_example")
+            .unwrap();
+        assert_eq!(
+            (sig.label.as_str(), sig.min_kb, sig.max_kb, sig.dpi),
+            ("Signature for the bank", Some(10), Some(20), Some(200))
+        );
+        let mine = presets.last().unwrap();
+        assert_eq!(
+            (
+                mine.id.as_str(),
+                mine.aspect.as_deref(),
+                mine.long_edge,
+                mine.note.as_deref()
+            ),
+            (
+                "my-photo",
+                Some("3:4"),
+                Some(900),
+                Some("For the club form")
+            )
+        );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
     fn broken_user_file_is_ignored() {
         let dir = std::env::temp_dir().join(format!("qc-presets-bad-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();

@@ -106,7 +106,7 @@ v0.1.0 is public, so Phase 2 ships as an update of the same app: settings and pr
 - [x] PageTray for Combine into PDF: drag to reorder, turn (lossless, folded into the photo's orientation), leave out (greyed, click to bring back), page previews for Fit / A4 / Letter and margin, Name A→Z / Reverse / Reset, Straighten photos, keyboard
 
 ### M12 — v0.2.0 release
-- [ ] Version 0.2.0, release notes, README (use + screenshots) for the new behaviour, v0.1.0 settings/presets still load, universal DMG, GitHub release
+- [x] Version 0.2.0, release notes, README (use + screenshots) for the new behaviour, v0.1.0 settings/presets still load, universal DMG, GitHub release
 
 ## Later updates
 - [ ] Other OS: implement real selection, test, package (its own update, once it can be tested on Windows)

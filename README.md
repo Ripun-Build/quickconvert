@@ -1,32 +1,49 @@
 # QuickConvert
 
-Select files in Finder → press **⌃⇧Space** → convert, compress or resize them from a small popup at your cursor.
+Select files in Finder → press **⌃⇧Space** → convert, compress, crop or tidy them from a small popup at your cursor. Works with photos (including iPhone HEIC) and PDFs.
 Offline and private: your files never leave your Mac.
 
 ![The QuickConvert popup next to a Finder selection](docs/screenshots/popup.png)
 
 ## What it does
 
+**Photos** (JPG, PNG, WebP, HEIC, TIFF, BMP, GIF)
+
 | Action | Details |
 |---|---|
-| **Combine into PDF** | Photos and scans → one PDF. Phone photos stay upright; JPEGs are embedded without losing quality. Page size: fit to image, A4 or Letter. |
-| **PDF to JPG / PNG** | Pick pages on thumbnails or type a range like `1-3, 5`. Sizes named for what they're for: Screen, Standard, Print. |
-| **Merge PDFs** | Two or more PDFs → one, in the order you selected them. |
+| **Combine into PDF** | Photos and scans → one PDF. Arrange the pages first: drag them into order, turn them, leave some out, or let **Straighten photos** fix sideways ones. Each page is previewed for fit to image, A4 or Letter, with or without a margin. JPEGs go in without losing quality. |
 | **Convert to…** | JPG, PNG or WebP, keeping each photo's colours. |
 | **Resize** | Drag the image's corner or type the width and height; both stay in sync. Never enlarges by accident. |
 | **Compress** | To a size limit (e.g. *under 50 KB* for exam and job portals) or by quality, with the real resulting size shown before you start. |
+| **Crop** | Drag a box over the photo. Shapes: free, square, 4:3, 3:4, 16:9 and passport 35 × 45 mm (it tells you if the crop is big enough to print). Turn the photo while you crop. |
+| **Rotate** | Choose how every photo should end up: straight, left, right or upside down. QuickConvert works out which way each photo is turned now (from its text and faces) and turns each one by what it needs. Click a photo to turn it yourself. |
+| **Remove location & camera info** | Takes out GPS location, camera details, dates and other hidden info. JPG, PNG and WebP pictures stay exactly the same; sideways photos stay upright. |
 | **Presets** | One-click recipes like *Exam photo 200 × 230 px, 20–50 KB* or *Passport 35 × 45 mm*. Edit them or make your own in Settings. Built-in values are examples: always check the official notice. |
+
+iPhone **HEIC** photos work with every action. Results that keep the format are saved as JPG at about the original's size; *Remove location & camera info* keeps them HEIC.
+
+**PDFs**
+
+| Action | Details |
+|---|---|
+| **PDF to JPG / PNG** | Pick pages on thumbnails or type a range like `1-3, 5`. Sizes named for what they're for: Screen, Standard, Print. |
+| **Merge PDFs** | Two or more PDFs → one, in the order you selected them. |
+| **Split PDF** | Click the pages where new parts start (or split every page, every 2, every 3), or keep just the pages you pick as a new PDF. |
+| **Rotate pages** | Like *Rotate* for photos: sideways pages are found and turned, or click pages to turn them. Nothing is re-saved, so quality stays the same. |
+| **Make PDF smaller** | Smallest, Balanced or Print, with the real new size shown before you start. Scanned pages and photos are made smaller; text stays sharp. |
 
 Every action writes a new file next to the original (or into a folder you choose) and never changes or overwrites the original.
 
 | | |
 |---|---|
-| ![Resize editor](docs/screenshots/resize.png) | ![PDF page picker](docs/screenshots/pdf-pages.png) |
-| ![Compress with live size](docs/screenshots/compress.png) | ![Settings](docs/screenshots/settings.png) |
+| ![Crop editor](docs/screenshots/crop.png) | ![Page tray for Combine into PDF](docs/screenshots/tray.png) |
+| ![Rotate: every photo straightened](docs/screenshots/rotate.png) | ![Resize editor](docs/screenshots/resize.png) |
+| ![PDF page picker](docs/screenshots/pdf-pages.png) | ![Compress with live size](docs/screenshots/compress.png) |
 
 ## Install (macOS 12 or later, Apple Silicon or Intel)
 
 1. Download `QuickConvert_<version>_universal.dmg` from the [Releases](https://github.com/Ripun-Build/quickconvert/releases) page and drag **QuickConvert** to **Applications**.
+   **Updating from 0.1?** Quit QuickConvert first (menu bar icon → Quit), then replace it. Your settings and presets carry over.
 2. **First launch:** the app isn't notarised by Apple yet, so macOS will say it's from an unidentified developer. Right-click (or Control-click) **QuickConvert** in Applications and choose **Open**, then **Open** again. You only need to do this once.
    On recent macOS versions, if there's no Open button: try to open it once, then go to **System Settings → Privacy & Security** and click **Open Anyway**.
 3. QuickConvert lives in the **menu bar** (no Dock icon). The first time you use it on a Finder selection, macOS asks whether QuickConvert may control Finder: choose **Allow** so it can see which files you've selected.
@@ -34,7 +51,8 @@ Every action writes a new file next to the original (or into a folder you choose
 ## Use
 
 - **Select files in Finder, press ⌃⇧Space.** The popup appears at the pointer with the actions that make sense for those files, the best ones first under *Suggested*.
-- Type to search, use **↑ ↓** and **Return**, or press **1–9**. **Esc** goes back or closes.
+- Type to search, use **↑ ↓** and **Return**, or press **1–9**. **Esc** goes back one step.
+- The popup stays open until you close it with its **×** or **⌘W**, so you can drag more files in or switch apps. Drag its top bar to move it.
 - No selection? The popup opens as a drop zone: drag files in or click **Choose files…**.
 - **Settings** (menu bar icon → Settings…, the ⚙ in the popup, or **⌘,**): change the shortcut, appearance (System / Light / Dark), where files are saved, default quality and sizes, presets, and launch at login.
 
