@@ -1,5 +1,5 @@
 // Display formatting for file names, sizes and counts.
-import type { FileInfo } from "./types";
+import type { FileInfo, Removed } from "./types";
 
 /** Decimal units, matching Finder: 2.4 MB, 38 MB, 512 KB. */
 export function formatBytes(bytes: number): string {
@@ -63,4 +63,30 @@ export function presetSummary(p: {
   parts.push(p.format.toUpperCase());
   if (p.dpi) parts.push(`${p.dpi} DPI`);
   return parts.join(" · ");
+}
+
+/** "a, b and c" */
+const listJoin = (items: string[]) =>
+  items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+
+/**
+ * What Remove info took out, e.g. "Removed location, camera and date info." or, for a batch,
+ * "Removed location and camera info (3 of 5 images had some)." Undefined for other actions.
+ */
+export function describeRemoved(outputs: readonly { removed?: Removed }[]): string | undefined {
+  const found = outputs.flatMap((o) => (o.removed ? [o.removed] : []));
+  if (found.length === 0) return undefined;
+  const had = found.filter((r) => r.location || r.camera || r.date || r.other).length;
+  if (had === 0) {
+    return found.length === 1
+      ? "No location or camera info found. Saved a clean copy anyway."
+      : "No location or camera info found in these images.";
+  }
+  const any = (key: keyof Removed) => found.some((r) => r[key]);
+  const kinds = (["location", "camera", "date"] as const).filter(any);
+  const what = kinds.length === 0 ? "hidden info" : `${listJoin([...kinds])} info${any("other") ? " and other details" : ""}`;
+  if (found.length === 1) return `Removed ${what}.`;
+  return had === found.length
+    ? `Removed ${what} from all ${found.length} images.`
+    : `Removed ${what} (${had} of ${found.length} images had some).`;
 }

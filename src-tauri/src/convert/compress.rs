@@ -98,10 +98,10 @@ pub struct Encoded {
     pub quality: Option<u8>,
 }
 
-/// Compress keeps the input's format where that can be tuned; BMP/TIFF/GIF become PNG.
+/// Compress keeps the input's format where that can be tuned; HEIC becomes JPG, BMP/TIFF/GIF PNG.
 pub fn format_for(input: &Path) -> OutputFormat {
     match crate::output::extension(input).as_str() {
-        "jpg" | "jpeg" => OutputFormat::Jpg,
+        "jpg" | "jpeg" | "heic" | "heif" => OutputFormat::Jpg,
         "webp" => OutputFormat::Webp,
         _ => OutputFormat::Png,
     }

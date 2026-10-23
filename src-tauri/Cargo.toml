@@ -42,6 +42,10 @@ opt-level = 3
 panic = "abort"
 strip = true
 
-# Optimise dependencies in dev builds so image decoding (thumbnails) stays fast.
+# Dev builds: optimise our own pixel code a little and dependencies fully, so converting and
+# thumbnails run at close to release speed while testing (unoptimised, a 12 MP JPG takes seconds).
+[profile.dev]
+opt-level = 1
+
 [profile.dev.package."*"]
 opt-level = 2

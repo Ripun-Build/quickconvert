@@ -39,6 +39,7 @@ test("every action is listed; the ones that don't fit are disabled with a reason
     "image_resize",
     "image_convert",
     "image_rotate",
+    "strip_metadata",
     "apply_preset",
   ]);
 });
@@ -111,6 +112,8 @@ test("search matches label words, keyword prefixes, and small typos", () => {
   assert.deepEqual(search("Comp"), ["image_compress"]);
   assert.deepEqual(search("passport"), ["image_crop", "apply_preset"]);
   assert.deepEqual(search("sideways"), ["image_rotate"]);
+  assert.deepEqual(search("gps"), ["strip_metadata"]);
+  assert.deepEqual(search("heic"), ["image_convert"]);
   assert.deepEqual(search("into pdf"), ["images_to_pdf"]);
   assert.deepEqual(search("cmprs"), ["image_compress"]);
   assert.deepEqual(search("webp"), ["image_convert"]);

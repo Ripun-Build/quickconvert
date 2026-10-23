@@ -1,7 +1,6 @@
 //! Job runner: conversions run on a blocking thread, report `job://progress`, finish with
 //! `job://done`, and can be cancelled between files/pages.
 
-use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -14,6 +13,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use crate::convert::compress::{self, CompressTarget, Preset};
 use crate::convert::crop::{self, CropRect, Turn};
 use crate::convert::image::{self as img, OutputFormat, ResizeMode};
+use crate::convert::metadata::{self, Found};
 use crate::convert::pdf::{self, Margin, PageSize};
 use crate::convert::pdf_render::{self, PageSelection};
 use crate::errors::AppError;
@@ -61,6 +61,8 @@ pub enum JobRequest {
     ImageRotate {
         turns: HashMap<String, Turn>,
     },
+    /// Remove location, camera, date and other personal info.
+    StripMetadata,
 }
 
 #[derive(Clone, Serialize)]
@@ -83,9 +85,11 @@ pub struct Failure {
 /// What an image output ended up as (shown in the Result view: "48 KB · 200×230 · quality 78").
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Detail {
-    pub width: u32,
-    pub height: u32,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
     pub quality: Option<u8>,
+    /// Remove-info action: what was found and removed.
+    pub removed: Option<Found>,
 }
 
 #[derive(Debug, Serialize)]
@@ -99,6 +103,8 @@ pub struct OutputFile {
     pub height: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quality: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub removed: Option<Found>,
 }
 
 #[derive(Debug, Serialize)]
@@ -191,6 +197,7 @@ pub fn start(
             fallback: fallback.as_deref(),
             pdfium_dirs: &pdfium_dirs,
             output_dir: output_dir.as_deref(),
+            workers: crate::pool::default_workers(),
         };
         let done = run(&id, &request, &paths, &places, &cancel, &emit);
 
@@ -209,7 +216,7 @@ pub fn start(
     Ok(job_id)
 }
 
-type Emit<'a> = &'a dyn Fn(usize, usize, &str, f64);
+type Emit<'a> = &'a (dyn Fn(usize, usize, &str, f64) + Sync);
 
 /// Where a job may write and find bundled components.
 pub struct Places<'a> {
@@ -219,6 +226,8 @@ pub struct Places<'a> {
     pub pdfium_dirs: &'a [PathBuf],
     /// Settings → Output → custom folder; None = next to each original.
     pub output_dir: Option<&'a Path>,
+    /// Files (or PDF pages) worked on at once.
+    pub workers: usize,
 }
 
 impl Places<'_> {
@@ -260,6 +269,17 @@ pub fn run(
     };
     let count = paths.len();
     let is_cancelled = || cancel.load(Ordering::Relaxed);
+    // "File i is starting", from any worker thread. Files start in order, but two workers can report
+    // a hair apart: never step the progress bar backwards.
+    let reported = Mutex::new(None::<usize>);
+    let progress = |i: usize| {
+        if let Ok(mut last) = reported.lock() {
+            if last.is_none_or(|l| i > l) {
+                *last = Some(i);
+                emit(i, count, &file_name(&paths[i]), percent(i, count));
+            }
+        }
+    };
     let record = |done: &mut JobDone,
                   path: &Path,
                   result: Result<(Written, Option<Detail>), AppError>| match result
@@ -271,9 +291,10 @@ pub fn run(
                     .map(|m| m.len())
                     .unwrap_or(0),
                 path: written.path.to_string_lossy().into_owned(),
-                width: detail.map(|d| d.width),
-                height: detail.map(|d| d.height),
+                width: detail.and_then(|d| d.width),
+                height: detail.and_then(|d| d.height),
                 quality: detail.and_then(|d| d.quality),
+                removed: detail.and_then(|d| d.removed),
             });
         }
         Err(AppError::Cancelled) => done.cancelled = true,
@@ -286,24 +307,31 @@ pub fn run(
     match request {
         // Many inputs → one PDF.
         JobRequest::ImagesToPdf { .. } | JobRequest::PdfMerge => {
-            let current = Cell::new(0);
-            let mut step = |i: usize| {
+            // The input being read, to name it if it fails.
+            let current = AtomicUsize::new(0);
+            let step = |i: usize| {
                 if is_cancelled() {
                     return Err(AppError::Cancelled);
                 }
-                current.set(i);
-                emit(i, count, &file_name(&paths[i]), percent(i, count));
+                progress(i);
                 Ok(())
             };
             let first = &paths[0];
             let result = (|| {
                 let (mut doc, name) = match request {
                     JobRequest::ImagesToPdf { page_size, margin } => (
-                        pdf::images_to_pdf(paths, *page_size, *margin, &mut step)?,
+                        pdf::images_to_pdf(paths, *page_size, *margin, places.workers, &step)
+                            .map_err(|failed| {
+                                current.store(failed.index, Ordering::Relaxed);
+                                failed.error
+                            })?,
                         output::combined_pdf_name(first, count),
                     ),
                     _ => (
-                        pdf::merge_pdfs(paths, &mut step)?,
+                        pdf::merge_pdfs(paths, &mut |i| {
+                            current.store(i, Ordering::Relaxed);
+                            step(i)
+                        })?,
                         output::merged_pdf_name(first),
                     ),
                 };
@@ -314,7 +342,8 @@ pub fn run(
                     Ok(doc.save_to(w)?)
                 })
             })();
-            record(&mut done, &paths[current.get()], result.map(|w| (w, None)));
+            let failed_at = current.load(Ordering::Relaxed);
+            record(&mut done, &paths[failed_at], result.map(|w| (w, None)));
         }
         // One PDF → a folder of page images.
         JobRequest::PdfToImages { format, dpi, pages } => {
@@ -353,15 +382,22 @@ pub fn run(
         | JobRequest::ImageCompress { .. }
         | JobRequest::ApplyPreset { .. }
         | JobRequest::ImageCrop { .. }
-        | JobRequest::ImageRotate { .. } => {
-            for (i, path) in paths.iter().enumerate() {
+        | JobRequest::ImageRotate { .. }
+        | JobRequest::StripMetadata => {
+            // A few files at once; files already started finish when the job is cancelled.
+            let results = crate::pool::map(count, places.workers, |i| {
                 if is_cancelled() {
-                    done.cancelled = true;
-                    break;
+                    return None;
                 }
-                emit(i, count, &file_name(path), percent(i, count));
-                let result = convert_one(request, path, places.dir_for(path), fallback);
-                record(&mut done, path, result);
+                progress(i);
+                let path = &paths[i];
+                Some(convert_one(request, path, places.dir_for(path), fallback))
+            });
+            for (path, result) in paths.iter().zip(results) {
+                match result.flatten() {
+                    Some(result) => record(&mut done, path, result),
+                    None => done.cancelled = true,
+                }
             }
         }
     }
@@ -377,8 +413,12 @@ fn convert_one(
     out_dir: &Path,
     fallback: Option<&Path>,
 ) -> Result<(Written, Option<Detail>), AppError> {
+    if let JobRequest::StripMetadata = request {
+        return strip_one(path, out_dir, fallback);
+    }
     let picture = img::load(path)?;
     let icc = picture.icc.as_deref();
+    let density = picture.density;
     let lossy = |format: OutputFormat| (format != OutputFormat::Png).then_some(());
     match request {
         JobRequest::ImageConvert { format, quality } => {
@@ -391,11 +431,11 @@ fn convert_one(
         }
         JobRequest::ImageResize { mode } => {
             let resized = img::resize(&picture.image, *mode);
-            write_same_format(path, out_dir, fallback, "resized", &resized, icc)
+            write_same_format(path, out_dir, fallback, "resized", &resized, icc, density)
         }
         JobRequest::ImageCrop { rect, turn } => {
             let cropped = crop::crop(&crop::rotate(picture.image, *turn), *rect)?;
-            write_same_format(path, out_dir, fallback, "cropped", &cropped, icc)
+            write_same_format(path, out_dir, fallback, "cropped", &cropped, icc, density)
         }
         JobRequest::ImageRotate { turns } => {
             let turn = turns
@@ -406,7 +446,7 @@ fn convert_one(
                 return Err(AppError::invalid("This image doesn't need turning."));
             }
             let rotated = crop::rotate(picture.image, turn);
-            write_same_format(path, out_dir, fallback, "rotated", &rotated, icc)
+            write_same_format(path, out_dir, fallback, "rotated", &rotated, icc, density)
         }
         JobRequest::ImageCompress { target } => {
             let plan = compress::plan_for_target(path, *target);
@@ -424,8 +464,8 @@ fn convert_one(
     }
 }
 
-/// Save `image` as `<name>-<suffix>` in the input's own format, at the quality used whenever the
-/// format is kept.
+/// Save `image` as `<name>-<suffix>` in the input's own format (HEIC: a JPG about as big as the
+/// original, see `density`), at the quality used whenever the format is kept.
 fn write_same_format(
     path: &Path,
     out_dir: &Path,
@@ -433,23 +473,83 @@ fn write_same_format(
     suffix: &str,
     image: &image::DynamicImage,
     icc: Option<&[u8]>,
+    density: Option<f64>,
 ) -> Result<(Written, Option<Detail>), AppError> {
-    let extension = img::same_format_extension(path);
-    let name = output::suffixed_name(path, suffix, &extension);
-    let written = output::write_output(out_dir, fallback, &name, |w| {
-        img::encode_like(image, icc, path, w)
-    })?;
-    let keeps_quality = matches!(extension.as_str(), "jpg" | "webp");
-    let detail = detail_of(image, keeps_quality.then_some(img::KEEP_FORMAT_QUALITY));
-    Ok((written, Some(detail)))
+    let (bytes, quality) = img::encode_same_format(image, icc, path, density)?;
+    let name = output::suffixed_name(path, suffix, &img::same_format_extension(path));
+    let written = output::write_output(out_dir, fallback, &name, |w| Ok(w.write_all(&bytes)?))?;
+    Ok((written, Some(detail_of(image, quality))))
 }
 
 fn detail_of(image: &image::DynamicImage, quality: Option<u8>) -> Detail {
     Detail {
-        width: image.width(),
-        height: image.height(),
+        width: Some(image.width()),
+        height: Some(image.height()),
         quality,
+        removed: None,
     }
+}
+
+/// Remove location, camera, date and other personal info into `<name>-clean.<ext>`. JPEG, PNG and
+/// WebP keep their picture data byte-for-byte; TIFF, BMP and GIF are re-saved (lossless; GIF keeps
+/// its first frame) and HEIC is re-saved as HEIC from its clean pixels — re-saving never writes
+/// metadata.
+fn strip_one(
+    path: &Path,
+    out_dir: &Path,
+    fallback: Option<&Path>,
+) -> Result<(Written, Option<Detail>), AppError> {
+    let resave = |from: &Path| -> Result<Vec<u8>, AppError> {
+        let picture = img::load(from)?;
+        let mut bytes = Vec::new();
+        img::encode_like(
+            &picture.image,
+            picture.icc.as_deref(),
+            path,
+            &mut std::io::Cursor::new(&mut bytes),
+        )?;
+        Ok(bytes)
+    };
+    let (bytes, found) = if crate::heic::is_heic(path) {
+        // The readable copy is a TIFF that still carries the photo's info: read what it had.
+        let readable = crate::heic::decode(path)?;
+        let found = metadata::read_tiff(&std::fs::read(readable.path())?).0;
+        let picture = img::load(readable.path())?;
+        (
+            crate::heic::encode(&picture.image, picture.icc.as_deref())?,
+            found,
+        )
+    } else {
+        let original = std::fs::read(path)?;
+        match metadata::clean(&original) {
+            Some(cleaned) => {
+                let cleaned = cleaned?;
+                (cleaned.bytes, cleaned.found)
+            }
+            None => {
+                let found = if matches!(img::same_format_extension(path).as_str(), "tiff") {
+                    metadata::read_tiff(&original).0
+                } else {
+                    Found::default()
+                };
+                (resave(path)?, found)
+            }
+        }
+    };
+    let extension = if crate::heic::is_heic(path) {
+        output::extension(path) // stays HEIC (or HEIF)
+    } else {
+        img::same_format_extension(path)
+    };
+    let name = output::suffixed_name(path, "clean", &extension);
+    let written = output::write_output(out_dir, fallback, &name, |w| Ok(w.write_all(&bytes)?))?;
+    let detail = Detail {
+        width: None,
+        height: None,
+        quality: None,
+        removed: Some(found),
+    };
+    Ok((written, Some(detail)))
 }
 
 fn write_encoded(
@@ -459,9 +559,10 @@ fn write_encoded(
     encoded: compress::Encoded,
 ) -> Result<(Written, Option<Detail>), AppError> {
     let detail = Detail {
-        width: encoded.width,
-        height: encoded.height,
+        width: Some(encoded.width),
+        height: Some(encoded.height),
         quality: encoded.quality,
+        removed: None,
     };
     let written =
         output::write_output(
@@ -543,6 +644,7 @@ mod tests {
             fallback: None,
             pdfium_dirs: &dirs,
             output_dir: None,
+            workers: 3,
         };
         run(
             "t",
@@ -667,6 +769,17 @@ mod tests {
             (Some(20), Some(30))
         );
 
+        // Remove info: same formats, -clean names; nothing to find in these plain files.
+        let cleaned = run_quiet(JobRequest::StripMetadata, &inputs);
+        assert_eq!(
+            names(&cleaned),
+            ["photo-clean.jpg", "logo-clean.png", "pic-clean.webp"]
+        );
+        assert!(cleaned
+            .outputs
+            .iter()
+            .all(|o| o.removed == Some(Found::default())));
+
         // Each image its own turn.
         let key = |p: &PathBuf| p.to_string_lossy().into_owned();
         let turns = HashMap::from([
@@ -694,11 +807,74 @@ mod tests {
             &preset_done,
             &cropped,
             &rotated,
+            &cleaned,
         ] {
             assert!(done.failures.is_empty(), "{:?}", done.failures);
             assert!(!done.cancelled);
         }
         assert_eq!(snapshot(&inputs), before, "originals must not change");
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn remove_info_reports_what_it_found_and_leaves_originals_alone() {
+        let dir = temp_dir("strip");
+        let phone = dir.join("IMG_1.jpg");
+        fs::write(&phone, metadata::tests::phone_jpeg()).unwrap();
+        let mut inputs = vec![phone];
+        if cfg!(target_os = "macos") {
+            let heic = dir.join("IMG_2.heic");
+            fs::copy(
+                Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sideways-gps.heic"),
+                &heic,
+            )
+            .unwrap();
+            inputs.push(heic);
+        }
+        let before = snapshot(&inputs);
+
+        let done = run_quiet(JobRequest::StripMetadata, &inputs);
+        assert!(done.failures.is_empty(), "{:?}", done.failures);
+        assert_eq!(snapshot(&inputs), before, "originals must not change");
+        let jpg = &done.outputs[0];
+        assert_eq!(names(&done)[0], "IMG_1-clean.jpg");
+        assert_eq!(
+            jpg.removed,
+            Some(Found {
+                location: true,
+                camera: true,
+                date: true,
+                other: true
+            })
+        );
+        if cfg!(target_os = "macos") {
+            assert_eq!(names(&done)[1], "IMG_2-clean.heic", "HEIC stays HEIC");
+            let removed = done.outputs[1].removed.unwrap();
+            assert!(removed.location && removed.camera);
+            let out = Path::new(&done.outputs[1].path);
+            let clean = img::load(out).unwrap();
+            assert_eq!(
+                (clean.image.width(), clean.image.height()),
+                (200, 300),
+                "upright"
+            );
+            let readable = crate::heic::decode(out).unwrap();
+            let (left, _) = metadata::read_tiff(&fs::read(readable.path()).unwrap());
+            assert!(
+                !left.location && !left.camera,
+                "nothing personal left: {left:?}"
+            );
+
+            // Other same-format actions turn HEIC into a JPG at quality 80–90.
+            let resized = run_quiet(
+                JobRequest::ImageResize {
+                    mode: ResizeMode::Percent { percent: 50.0 },
+                },
+                &inputs[1..],
+            );
+            assert_eq!(names(&resized), ["IMG_2-resized.jpg"]);
+            assert!(matches!(resized.outputs[0].quality, Some(80..=90)));
+        }
         fs::remove_dir_all(dir).unwrap();
     }
 
@@ -765,6 +941,7 @@ mod tests {
             fallback: None,
             pdfium_dirs: &dirs,
             output_dir: None,
+            workers: 1,
         };
         let done = run("t", &request, &inputs, &places, &cancel, &emit);
         assert!(done.cancelled);
@@ -824,6 +1001,8 @@ mod tests {
                 ])
             }
         );
+        let r: JobRequest = serde_json::from_str(r#"{"action":"strip_metadata"}"#).unwrap();
+        assert_eq!(r, JobRequest::StripMetadata);
         let r: JobRequest = serde_json::from_str(r#"{"action":"pdf_merge"}"#).unwrap();
         assert_eq!(r, JobRequest::PdfMerge);
         let r: JobRequest = serde_json::from_str(
@@ -987,6 +1166,7 @@ mod tests {
             fallback: None,
             pdfium_dirs: &dirs,
             output_dir: None,
+            workers: 4,
         };
         let request = JobRequest::ImageConvert {
             format: OutputFormat::Jpg,
@@ -1005,10 +1185,19 @@ mod tests {
         assert_eq!(done.outputs.len(), 48);
         let failed: Vec<_> = done.failures.iter().map(|f| f.name.as_str()).collect();
         assert_eq!(failed, ["photo_07.png", "photo_31.png"]);
+        // Four at a time: progress only moves forward, names match, and it ends at 100 %.
         let progress = progress.into_inner().unwrap();
-        assert_eq!(progress.len(), 51, "one per file plus the final 100%");
-        assert_eq!(progress[10], (10, 50, "photo_10.png".to_string(), 20.0));
-        assert_eq!(progress[50].3, 100.0);
+        let (last, files) = progress.split_last().unwrap();
+        assert_eq!(last.3, 100.0);
+        assert!(
+            files.len() >= 40,
+            "nearly one report per file: {}",
+            files.len()
+        );
+        assert!(files.windows(2).all(|w| w[0].0 < w[1].0), "never backwards");
+        assert!(files
+            .iter()
+            .all(|(i, n, name, _)| *n == 50 && *name == format!("photo_{i:02}.png")));
 
         // Cancel half-way: files already started finish, the rest are skipped.
         let cancel = AtomicBool::new(false);
@@ -1021,7 +1210,11 @@ mod tests {
             }
         });
         assert!(done.cancelled);
-        assert_eq!(done.outputs.len() + done.failures.len(), 26);
+        let finished = done.outputs.len() + done.failures.len();
+        assert!(
+            (26..=29).contains(&finished),
+            "files already started (up to 4 at once) finish: {finished}"
+        );
         fs::remove_dir_all(dir).unwrap();
     }
 }

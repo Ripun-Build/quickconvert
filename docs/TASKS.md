@@ -92,8 +92,10 @@ v0.1.0 is public, so Phase 2 ships as an update of the same app: settings and pr
 - [x] Closing Settings brings the popup back on the screen it was showing
 
 ### M9 — HEIC and metadata
-- [ ] HEIC/HEIF photos as input for every image action (macOS built-in decoder)
-- [ ] `strip_metadata`
+- [x] HEIC/HEIF photos as input for every image action (macOS built-in `sips`); same-format outputs become a JPG sized like the original (quality 90/85/80)
+- [x] `strip_metadata` ("Remove location & camera info"): JPG/PNG/WebP cleaned without touching the picture, HEIC stays HEIC, orientation kept, `-clean` names, result says what was removed
+- [x] Combine into PDF: embedded JPEGs lose their metadata; HEIC pages stored as JPEG
+- [x] Speed: batches and PDF pages 4 at a time, HEIC thumbnails/checks from small `sips` copies, fewer JPG encodes (50 HEIC → PDF: 22 s → 4.5 s)
 
 ### M10 — PDF tools
 - [ ] `pdf_split`, `pdf_rotate`, `pdf_compress`

@@ -153,7 +153,7 @@ Settings → Appearance sets `data-theme="light" | "dark"` on `<html>`, or remov
 | **Slider** | 4 px track, 18 px white knob with shadow, live value in caption on the right (tabular). |
 | **TextField** | 30 px, `--surface` bg, radius 7, focus ring 3 px `--focus-ring`. |
 | **ProgressBar** | 4 px, radius pill, `--accent` fill on `--separator` track; indeterminate shimmer when percent unknown. |
-| **Toast-style result** | Check icon draws in (stroke-dashoffset 280 ms), title "Saved", output name, three secondary buttons. |
+| **Toast-style result** | Check icon draws in (stroke-dashoffset 280 ms), title "Saved", output name, three secondary buttons. Remove info adds one caption line in `--text-secondary` saying what was removed. |
 | **PdfPagesEditor** | 720 px wide. Left: page grid (4 columns, `--surface` well, scrolls); selected pages get a 2 px `--accent` ring and a check badge, unselected ones fade to 55 %. Right column 232 px: Pages (All/None chips + range field, `--danger` ring and message when invalid), Format (Segmented + hint), Image size (three radio cards: label, pixel size, one-line description; selected = `--surface-selected` with `--accent` inset ring). |
 | **EstimateCard** | `--surface` card, radius 12: caption label ("Result" / "First image"), then title-size "4.1 MB → 48 KB" (original in secondary, arrow tertiary, result primary, tabular), caption with W×H and quality. Dims to 50 % while re-measuring; errors in `--danger`. |
 | **Preset card / size choice** | Radio card: `--surface`, radius 7, label (body-strong) over a caption description. Selected: `--surface-selected` + 1 px `--accent` inset ring, label in `--accent`. |
@@ -165,7 +165,7 @@ Settings → Appearance sets `data-theme="light" | "dark"` on `<html>`, or remov
 | **CropEditor** | 720 px wide. Photo on a `--surface` canvas, dimmed outside the crop box by `--shadow-scrim` (clipped to the photo). Box: 1 px `--crop-line` border; corner handles 16 px `--crop-line` dots, side handles 8 × 28 px pills, all with `--shadow-control`; the bottom-right one has a 2 px `--accent` border and takes the keyboard. Thirds grid (`--crop-line`, 60 %) only while dragging. W × H label in a `--bg-glass` chip. Shape chips like the Resize % chips (selected = `--surface-selected` + `--text-accent`). Rotate turns the photo with a spring (300 / 30); reduced motion fades instead. |
 | **RotateView** | 360 px. Caption "Make every image" over a Segmented (Straight / Left / Right / Upside down). Pictures: radius 7, `--surface` with a 0.5 px `--separator` ring, image `object-contain`, turning with the same spring (always the short way round); one image = 176 px square on a `--surface` card, several = 4-column grid, 8 px gaps, max 208 px tall with the scroll fade. Badge top-right: 18 px `--bg-glass` circle with a 12 px icon — RotateCw `--text-accent` (will turn), Check `--text-tertiary` (already right; picture at 60 %), CircleHelp `--text-warning` (couldn't tell). Skeleton while checking. Summary line in caption tertiary. |
 
-Icons (lucide-react): FileText (PDF), Images, Image, Minimize2 (compress), Scaling (resize), Crop, RotateCw, Combine/Layers (merge), Scissors (split), SlidersHorizontal (options), Settings, Check, AlertTriangle, FolderOpen, Copy.
+Icons (lucide-react): FileText (PDF), Images, Image, Minimize2 (compress), Scaling (resize), Crop, RotateCw, MapPinOff (remove location & camera info), Combine/Layers (merge), Scissors (split), SlidersHorizontal (options), Settings, Check, AlertTriangle, FolderOpen, Copy.
 
 ## 5. Motion (Framer Motion)
 

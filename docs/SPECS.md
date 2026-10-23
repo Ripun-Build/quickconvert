@@ -92,16 +92,18 @@ The selection is only read when Explorer/Finder is the frontmost app at the mome
 
 ## 6. Action catalogue
 
-Input types: `image` = JPG/JPEG, PNG, WebP, BMP, GIF (first frame), TIFF; `pdf` = PDF.
+Input types: `image` = JPG/JPEG, PNG, WebP, BMP, GIF (first frame), TIFF, HEIC/HEIF; `pdf` = PDF.
+
+**HEIC/HEIF (iPhone photos, v0.2):** read on macOS through the built-in `/usr/bin/sips` into a temporary TIFF in the system temp folder (pixels, colour profile and orientation tag kept; deleted right after), then loaded like any image — so every image action, thumbnail and editor accepts HEIC. Operations that keep the format (resize, crop, rotate) save HEIC as **JPG**, sized like the original: HEIC packs a photo into about half the space of a JPG, so the JPG uses the highest quality of 90 / 85 / 80 whose file isn't bigger than the HEIC would be at that pixel count (floor 80). Compress and presets follow their own targets; Remove info keeps HEIC (below). On other systems HEIC is "can't open .heic files yet". The Mac-only part lives in `heic/` (like `selection/` and `upright/`).
 
 ### v1 (MVP)
 | id | Label | Input | Output | Options (defaults **bold**) |
 |---|---|---|---|---|
-| `images_to_pdf` | Combine into PDF | 1+ images | 1 PDF | Page size: **Fit to image** (image DPI, else 150 DPI) / A4 / Letter (landscape for wide images) · Margin: **None** / Small (10 mm) · Order: **selection order** (by filename if unknown). JPEGs embedded without re-encoding; EXIF rotation applied. |
+| `images_to_pdf` | Combine into PDF | 1+ images | 1 PDF | Page size: **Fit to image** (image DPI, else 150 DPI) / A4 / Letter (landscape for wide images) · Margin: **None** / Small (10 mm) · Order: **selection order** (by filename if unknown). JPEGs embedded without re-encoding, minus their metadata blocks (location, camera, date, XMP, comments; v0.2); EXIF rotation applied. HEIC pages stored as JPEG sized like the original (quality 90 / 85 / 80, as above) to keep the PDF small. |
 | `pdf_to_images` | PDF to JPG/PNG | 1 PDF | 1 image per page | **PdfPagesEditor**. Format: **JPG** / PNG · Size: Screen / **Standard** / Print (72 / 150 / 300 DPI) · Pages: **All** / picked pages or range "1-3,5" |
 | `image_convert` | Convert to… | 1+ images | same count | Format: **JPG** / PNG / WebP (lossy, libwebp) · Quality 1–100 (**85**) for JPG/WebP · Transparent background → **white** (JPG only) |
 | `image_resize` | Resize | 1+ images | same count | **ResizeEditor** (visual). Starts at long edge **1600 px** (or the original if smaller); never upscales. Several images: aspect locked → same percentage for each (each keeps its shape); unlocked → every image becomes exactly W × H. |
-| `image_compress` | Compress | 1+ images | same count | **CompressView**. Mode: **Target size (KB)** / Quality slider (default 75) · Target default **200 KB**. Keeps the format: JPG → JPG, WebP → WebP (quality), PNG → PNG (strongest lossless compression; size targets reduce pixels); BMP / TIFF / GIF → PNG. Colour profile kept, EXIF/GPS dropped. |
+| `image_compress` | Compress | 1+ images | same count | **CompressView**. Mode: **Target size (KB)** / Quality slider (default 75) · Target default **200 KB**. Keeps the format: JPG → JPG, WebP → WebP (quality), PNG → PNG (strongest lossless compression; size targets reduce pixels); BMP / TIFF / GIF → PNG; HEIC → JPG. Colour profile kept, EXIF/GPS dropped. |
 | `pdf_merge` | Merge PDFs | 2+ PDFs | 1 PDF | Order: **selection order** |
 | `apply_preset` | Apply preset… | 1+ images | same count | **PresetView**. Pick from presets (§8); output in the preset's format, named `photo-<preset id>.jpg`. |
 
@@ -111,7 +113,11 @@ Input types: `image` = JPG/JPEG, PNG, WebP, BMP, GIF (first frame), TIFF; `pdf` 
 | `image_crop` | Crop | 1 image | 1 image | **CropEditor** (visual). Box in pixels of the upright photo after an optional quarter turn; shape **Free**. Keeps the format (JPG/WebP saved at quality 90) and colour profile. Several images selected: listed but disabled ("Works on one image at a time"). |
 | `image_rotate` | Rotate | 1+ images | only the images that need turning | **RotateView**. The user picks how every image should end up: **Straight** / Left / Right / Upside down. Each image is first checked for which way is up (after its EXIF orientation is applied): on macOS the system Vision framework (offline, via `osascript`; nothing bundled) reads it four ways — text scored by letters of real words (upside-down text reads as gibberish), faces by confidence × how level they are — and a reading wins when it clearly beats the others (text ≥ 12 letters, faces ≥ 0.6, at least 2× the runner-up). No clear winner (landscapes, little text): "couldn't tell", treated as already straight. Each image's turn = what makes it straight + the target + the user's own clicks; images whose turn comes to 0 are skipped, not saved again. Keeps the format (JPG/WebP saved at quality 90) and colour profile; the result is upright pixels, not an orientation tag (many upload sites ignore the tag). Other systems: no detection yet (every image "couldn't tell"). |
 
-Still to come in v0.2: `pdf_split` (every page / ranges) · `pdf_compress` (re-encode embedded images at lower quality/DPI) · `pdf_rotate` · `heic_to_jpg` (libheif, LGPL, dynamic) · `strip_metadata` (remove EXIF/GPS) · PageTray for `images_to_pdf`.
+| `strip_metadata` | Remove location & camera info | 1+ images | same count | No options: runs straight away. Removes location (GPS), camera/phone and lens details, dates, editing software, descriptions, XMP/IPTC blocks and comments, plus anything stored after the end of a JPEG (phones keep depth/HDR maps there, each with its own copy of the metadata). **JPG, PNG, WebP: the picture data is copied byte-for-byte** — only metadata blocks are dropped; kept: colour profile, JFIF/print resolution, PNG colour/transparency chunks, WebP animation. A "turn to view" orientation survives as a minimal EXIF block with nothing else in it, so sideways photos still show upright. TIFF and BMP are re-saved (lossless; TIFF's colour profile isn't kept), GIF keeps its first frame. **HEIC stays HEIC**: the clean pixels (upright, colour profile only) are re-encoded once by the system encoder at its normal camera quality (`sips -s format heic`), so the copy is about the original's size. Output `photo-clean.jpg` / `photo-clean.heic`. The Result view says what was found: "Removed location, camera and date info and other details." / "(3 of 5 images had some)" / "No location or camera info found. Saved a clean copy anyway." |
+
+`heic_to_jpg` is covered by Convert to… now that HEIC is a normal input (typing "heic" finds it).
+
+Still to come in v0.2: `pdf_split` (every page / ranges) · `pdf_compress` (re-encode embedded images at lower quality/DPI) · `pdf_rotate` · PageTray for `images_to_pdf`.
 
 ### Phase 3
 `video_to_gif`, `extract_audio`, `video_compress` (FFmpeg LGPL build as sidecar) · `ocr_to_text` (Tesseract, Apache-2.0) · `batch_rename`.
@@ -161,7 +167,7 @@ Shipped presets are clearly labelled **examples**; users can add, edit, duplicat
 - Default location: **same folder as the original**. Setting: custom output folder.
 - Naming:
   - Single conversion: `photo.png` → `photo.jpg`; if that exists → `photo (1).jpg`, `photo (2).jpg`…
-  - Same-format operations: `photo.jpg` → `photo-compressed.jpg`, `photo-resized.jpg`, `photo-cropped.jpg`, `photo-rotated.jpg`, `photo-<preset id>.jpg`.
+  - Same-format operations: `photo.jpg` → `photo-compressed.jpg`, `photo-resized.jpg`, `photo-cropped.jpg`, `photo-rotated.jpg`, `photo-clean.jpg`, `photo-<preset id>.jpg`. HEIC inputs get `.jpg` names, except Remove info (`photo-clean.heic`).
   - `images_to_pdf`: `<first file name>.pdf` for one image; `<first file name> +N.pdf` for many.
   - `pdf_to_images`: folder `<pdf name> pages/` containing `<pdf name>-01.jpg`, `-02`, … (zero-padded to page count width).
   - `pdf_merge`: `<first file name> merged.pdf`.
@@ -194,7 +200,7 @@ HEIC/HEIF in Phase 2.
 
 | Area | Requirement |
 |---|---|
-| Speed | Popup visible ≤ 150 ms after hotkey. 20 phone JPGs → PDF ≤ 3 s on a mid-range laptop (JPEGs embedded without re-encoding). |
+| Speed | Popup visible ≤ 150 ms after hotkey. 20 phone JPGs → PDF ≤ 3 s on a mid-range laptop (JPEGs embedded without re-encoding). Batches and Combine into PDF work on up to 4 files at once (`pool.rs`; results and pages stay in selection order, progress never steps back, Cancel lets started files finish); 50 iPhone HEIC photos → PDF ≈ 5 s on an Apple-silicon Mac. HEIC thumbnails and Rotate checks ask `sips` for a small copy (`-Z`) instead of decoding the full photo. |
 | Memory | Idle ≤ 100 MB RAM. Large files processed one at a time. |
 | Privacy | No network access at all. No telemetry. |
 | Reliability | Batches continue past individual failures and report per-file results. Jobs are cancellable. Crash-free on corrupt input (return an error). |

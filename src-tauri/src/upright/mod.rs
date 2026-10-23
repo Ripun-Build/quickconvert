@@ -83,7 +83,8 @@ pub struct RotateCheck {
 }
 
 pub fn check(path: &Path, size: u32) -> Result<RotateCheck, AppError> {
-    let picture = crate::convert::image::load(path)?;
+    // Detection reads a 1280 px copy anyway: HEIC is decoded at about that size straight away.
+    let picture = crate::convert::image::load_small(path, 1280)?;
     let url =
         crate::files::jpeg_data_url(&picture.image.thumbnail(size, size), picture.icc.as_deref())?;
     Ok(RotateCheck {

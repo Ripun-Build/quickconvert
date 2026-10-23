@@ -2,15 +2,18 @@ pub mod commands;
 pub mod convert;
 pub mod errors;
 pub mod files;
+pub mod heic;
 pub mod instance;
 pub mod jobs;
 pub mod output;
+pub mod pool;
 pub mod popup;
 pub mod presets;
 pub mod selection;
 pub mod settings;
 pub mod settings_window;
 pub mod shortcut;
+pub mod temp;
 pub mod upright;
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};

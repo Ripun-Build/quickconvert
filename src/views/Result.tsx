@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Copy, FolderOpen } from "lucide-react";
 import { Button } from "../components/Button";
-import { describeOutput, formatBytes, truncateMiddle } from "../lib/format";
+import { describeOutput, describeRemoved, formatBytes, truncateMiddle } from "../lib/format";
 import { openOutput, revealOutput } from "../lib/ipc";
 import type { JobDone } from "../lib/types";
 
@@ -24,6 +24,7 @@ export function Result({ done, autoHide, onAutoHide }: { done: JobDone; autoHide
   const outputs = done.outputs.map((o) => o.path);
   const single = outputs.length === 1;
   const total = done.outputs.reduce((sum, o) => sum + o.bytes, 0);
+  const removed = describeRemoved(done.outputs);
 
   useEffect(() => {
     // Stay open while the user is pointing at it, or when there's a note to read.
@@ -60,6 +61,7 @@ export function Result({ done, autoHide, onAutoHide }: { done: JobDone; autoHide
           <p className="type-caption truncate text-tertiary tabular-nums">
             {single ? describeOutput(done.outputs[0]) : `${formatBytes(total)} in total`}
           </p>
+          {removed && <p className="type-caption text-secondary">{removed}</p>}
         </div>
       </div>
       {done.savedToFallback && (

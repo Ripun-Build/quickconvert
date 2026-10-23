@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { describeOutput, formatBytes, presetSummary, truncateMiddle } from "./format.ts";
+import { describeOutput, describeRemoved, formatBytes, presetSummary, truncateMiddle } from "./format.ts";
 
 test("sizes use decimal units like Finder", () => {
   assert.equal(formatBytes(512), "512 B");
@@ -27,4 +27,21 @@ test("preset summaries", () => {
 test("long names keep their start and extension", () => {
   assert.equal(truncateMiddle("IMG_20240412_093011_0412.jpg", 20), "IMG_202404…_0412.jpg");
   assert.equal(truncateMiddle("short.jpg"), "short.jpg");
+});
+
+test("remove-info results say what was taken out", () => {
+  const all = { location: true, camera: true, date: true, other: true };
+  const none = { location: false, camera: false, date: false, other: false };
+  const cameraOnly = { ...none, camera: true };
+  assert.equal(describeRemoved([{}]), undefined, "other actions");
+  assert.equal(describeRemoved([{ removed: all }]), "Removed location, camera and date info and other details.");
+  assert.equal(describeRemoved([{ removed: cameraOnly }]), "Removed camera info.");
+  assert.equal(describeRemoved([{ removed: { ...none, other: true } }]), "Removed hidden info.");
+  assert.equal(describeRemoved([{ removed: none }]), "No location or camera info found. Saved a clean copy anyway.");
+  assert.equal(describeRemoved([{ removed: none }, { removed: none }]), "No location or camera info found in these images.");
+  assert.equal(
+    describeRemoved([{ removed: cameraOnly }, { removed: none }, { removed: { ...cameraOnly, location: true } }]),
+    "Removed location and camera info (2 of 3 images had some).",
+  );
+  assert.equal(describeRemoved([{ removed: all }, { removed: all }]), "Removed location, camera and date info and other details from all 2 images.");
 });

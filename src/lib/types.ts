@@ -134,7 +134,8 @@ export type JobRequest =
   | { action: "apply_preset"; preset: Preset }
   | { action: "image_crop"; rect: CropRect; turn: Turn }
   /** Each image's own turn, keyed by path. */
-  | { action: "image_rotate"; turns: Record<string, Turn> };
+  | { action: "image_rotate"; turns: Record<string, Turn> }
+  | { action: "strip_metadata" };
 
 /** Payload of the `job://progress` event. */
 export interface JobProgress {
@@ -152,6 +153,14 @@ export interface JobFailure {
   error: AppError;
 }
 
+/** `metadata::Found`: personal info found in an image (and removed by Remove info). */
+export interface Removed {
+  location: boolean;
+  camera: boolean;
+  date: boolean;
+  other: boolean;
+}
+
 /** `jobs::OutputFile`: a written file and, for images, what it ended up as. */
 export interface OutputFile {
   path: string;
@@ -159,6 +168,8 @@ export interface OutputFile {
   width?: number;
   height?: number;
   quality?: number;
+  /** Remove info: what was removed. */
+  removed?: Removed;
 }
 
 /** Payload of the `job://done` event (`jobs::JobDone`). */

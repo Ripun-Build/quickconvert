@@ -85,7 +85,7 @@ export const pdfPageSizes = (path: string) => call<PdfPageSize[]>("pdf_page_size
 export const pdfThumbnails = (path: string, pages: number[]) => call<string[]>("pdf_thumbnails", { path, pages });
 
 
-const DIALOG_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "bmp", "gif", "tif", "tiff", "pdf"];
+const DIALOG_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "bmp", "gif", "tif", "tiff", "heic", "heif", "pdf"];
 
 /** Native "Choose files…" dialog. Resolves to [] when cancelled. */
 export async function chooseFiles(): Promise<string[]> {

@@ -43,7 +43,9 @@ pub struct FileSet {
 pub fn kind_of(path: &Path) -> Option<FileKind> {
     let ext = path.extension()?.to_str()?.to_ascii_lowercase();
     match ext.as_str() {
-        "jpg" | "jpeg" | "png" | "webp" | "bmp" | "gif" | "tif" | "tiff" => Some(FileKind::Image),
+        "jpg" | "jpeg" | "png" | "webp" | "bmp" | "gif" | "tif" | "tiff" | "heic" | "heif" => {
+            Some(FileKind::Image)
+        }
         "pdf" => Some(FileKind::Pdf),
         _ => None,
     }
@@ -140,7 +142,7 @@ pub fn thumbnail_data_url(path: &Path) -> Result<String, AppError> {
             extension: extension_of(path),
         });
     }
-    let picture = crate::convert::image::load(path)?;
+    let picture = crate::convert::image::load_small(path, THUMB_SIZE * 4)?;
 
     // Keep the colour profile so thumbnails show the same colours as the file.
     let mut png = Vec::new();

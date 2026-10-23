@@ -1,6 +1,6 @@
 //! Image format conversion and resize.
 
-use std::io::{Seek, Write};
+use std::io::{Cursor, Seek, Write};
 use std::path::Path;
 
 use image::codecs::jpeg::JpegEncoder;
@@ -71,10 +71,30 @@ fn corrupt(e: image::ImageError) -> AppError {
 pub struct Picture {
     pub image: DynamicImage,
     pub icc: Option<Vec<u8>>,
+    /// HEIC originals: file bytes per pixel, so a JPG made from it can aim for a similar size.
+    pub density: Option<f64>,
+}
+
+/// Like `load`, but HEIC is first scaled by the system decoder to about `max` px on its long side:
+/// far quicker for thumbnails and checks. Other formats load in full (callers scale them).
+pub fn load_small(path: &Path, max: u32) -> Result<Picture, AppError> {
+    if crate::heic::is_heic(path) {
+        let small = crate::heic::decode_scaled(path, Some(max))?;
+        return load(small.path());
+    }
+    load(path)
 }
 
 /// Decode an image, keep its ICC profile, and apply its EXIF orientation (phone photos upright).
 pub fn load(path: &Path) -> Result<Picture, AppError> {
+    if crate::heic::is_heic(path) {
+        let bytes = std::fs::metadata(path)?.len();
+        let readable = crate::heic::decode(path)?;
+        let mut picture = load(readable.path())?;
+        let pixels = f64::from(picture.image.width()) * f64::from(picture.image.height());
+        picture.density = (pixels > 0.0).then(|| bytes as f64 / pixels);
+        return Ok(picture);
+    }
     let mut decoder = ImageReader::open(path)?
         .with_guessed_format()?
         .into_decoder()
@@ -87,7 +107,11 @@ pub fn load(path: &Path) -> Result<Picture, AppError> {
         .filter(|p| !p.is_empty());
     let mut image = DynamicImage::from_decoder(decoder).map_err(corrupt)?;
     image.apply_orientation(orientation);
-    Ok(Picture { image, icc })
+    Ok(Picture {
+        image,
+        icc,
+        density: None,
+    })
 }
 
 /// Encode to JPG (transparency on white), PNG or WebP, embedding `icc` when given.
@@ -144,6 +168,10 @@ pub fn encode_like<W: Write + Seek>(
     input: &Path,
     out: &mut W,
 ) -> Result<(), AppError> {
+    // QuickConvert doesn't write HEIC: same-format operations save it as JPG.
+    if crate::heic::is_heic(input) {
+        return encode(img, icc, OutputFormat::Jpg, KEEP_FORMAT_QUALITY, out);
+    }
     let format = ImageFormat::from_path(input).map_err(corrupt)?;
     match format {
         ImageFormat::Jpeg => encode(img, icc, OutputFormat::Jpg, KEEP_FORMAT_QUALITY, out),
@@ -151,6 +179,64 @@ pub fn encode_like<W: Write + Seek>(
         ImageFormat::Png => encode(img, icc, OutputFormat::Png, KEEP_FORMAT_QUALITY, out),
         other => img.write_to(out, other).map_err(corrupt),
     }
+}
+
+/// A JPG of `img` at quality 90, 85 or 80: the best of those no bigger than `budget` bytes (else
+/// 80). HEIC packs a photo into about half the space of a JPG, so quality 90 alone would make iPhone
+/// photos 1.5–2× bigger. Returns the bytes and the quality used.
+///
+/// One encode at 80 shows how much room there is: going up to 85 adds roughly 10–20 % and to 90
+/// roughly 60 %, so higher qualities are only tried when they can plausibly fit. Most photos
+/// need one or two encodes instead of three.
+pub fn jpeg_near(
+    img: &DynamicImage,
+    icc: Option<&[u8]>,
+    budget: Option<f64>,
+) -> Result<(Vec<u8>, u8), AppError> {
+    let jpg = |quality: u8| -> Result<Vec<u8>, AppError> {
+        let mut bytes = Vec::new();
+        encode(
+            img,
+            icc,
+            OutputFormat::Jpg,
+            quality,
+            &mut Cursor::new(&mut bytes),
+        )?;
+        Ok(bytes)
+    };
+    let Some(budget) = budget else {
+        return Ok((jpg(90)?, 90));
+    };
+    let low = jpg(80)?;
+    let size = low.len() as f64;
+    for (quality, growth) in [(90, 1.6), (85, 1.05)] {
+        if size * growth <= budget {
+            let bytes = jpg(quality)?;
+            if bytes.len() as f64 <= budget {
+                return Ok((bytes, quality));
+            }
+        }
+    }
+    Ok((low, 80))
+}
+
+/// `img` in `input`'s own format (HEIC → JPG about as big as the original would be at this size,
+/// via `density`), and the quality used for lossy formats.
+pub fn encode_same_format(
+    img: &DynamicImage,
+    icc: Option<&[u8]>,
+    input: &Path,
+    density: Option<f64>,
+) -> Result<(Vec<u8>, Option<u8>), AppError> {
+    if crate::heic::is_heic(input) {
+        let pixels = f64::from(img.width()) * f64::from(img.height());
+        let (bytes, quality) = jpeg_near(img, icc, density.map(|d| d * pixels))?;
+        return Ok((bytes, Some(quality)));
+    }
+    let mut bytes = Vec::new();
+    encode_like(img, icc, input, &mut Cursor::new(&mut bytes))?;
+    let lossy = matches!(same_format_extension(input).as_str(), "jpg" | "webp");
+    Ok((bytes, lossy.then_some(KEEP_FORMAT_QUALITY)))
 }
 
 /// Add an ICCP chunk to a simple-format WebP (libwebp's output), switching it to the extended
@@ -207,7 +293,7 @@ pub(crate) fn webp_with_icc(
 /// Output extension for `encode_like`: the input's, with `jpeg` normalised to `jpg`.
 pub fn same_format_extension(input: &Path) -> String {
     match crate::output::extension(input).as_str() {
-        "jpeg" => "jpg".into(),
+        "jpeg" | "heic" | "heif" => "jpg".into(),
         "tif" => "tiff".into(),
         other => other.into(),
     }
@@ -425,5 +511,35 @@ mod tests {
         std::fs::write(&path, &buf).unwrap();
         assert_eq!(load(&path).unwrap().icc, Some(icc));
         std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn heic_to_jpg_picks_the_best_quality_that_fits_the_budget() {
+        let img = DynamicImage::ImageRgb8(RgbImage::from_fn(160, 120, |x, y| {
+            Rgb([
+                (x * 37 % 251) as u8,
+                (y * 91 % 241) as u8,
+                ((x * y) % 239) as u8,
+            ])
+        }));
+        let size = |q| {
+            let mut buf = Vec::new();
+            encode(&img, None, OutputFormat::Jpg, q, &mut Cursor::new(&mut buf)).unwrap();
+            buf.len() as f64
+        };
+        assert_eq!(
+            jpeg_near(&img, None, None).unwrap().1,
+            90,
+            "no budget: best quality"
+        );
+        let between = (size(90) + size(85)) / 2.0;
+        let (bytes, quality) = jpeg_near(&img, None, Some(between)).unwrap();
+        assert_eq!(quality, 85);
+        assert!(bytes.len() as f64 <= between);
+        assert_eq!(
+            jpeg_near(&img, None, Some(10.0)).unwrap().1,
+            80,
+            "never below 80"
+        );
     }
 }

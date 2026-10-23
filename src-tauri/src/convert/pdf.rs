@@ -3,16 +3,28 @@
 use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use image::{ImageDecoder, ImageReader};
 use lopdf::{dictionary, Dictionary, Document, Object, ObjectId, Stream};
 use serde::Deserialize;
 
-use super::image::{flatten_on_white, load};
+use super::image::{flatten_on_white, jpeg_near, load};
+use super::metadata;
 use crate::errors::AppError;
 
 /// Called before each input with its index; returns `Err(Cancelled)` to stop.
 pub type Step<'a> = &'a mut dyn FnMut(usize) -> Result<(), AppError>;
+
+/// Progress/cancel callback for `images_to_pdf`, called from its worker threads.
+pub type SharedStep<'a> = &'a (dyn Fn(usize) -> Result<(), AppError> + Sync);
+
+/// The input that stopped `images_to_pdf` (position in `paths`), and why.
+#[derive(Debug)]
+pub struct ImageFailed {
+    pub index: usize,
+    pub error: AppError,
+}
 
 /// Assumed resolution when an image doesn't say (decided in M3).
 const DEFAULT_DPI: f64 = 150.0;
@@ -51,19 +63,38 @@ pub fn pdf_error(err: lopdf::Error) -> AppError {
 // ---- Images → PDF ----
 
 /// One page per image, in the given order. JPEGs are embedded byte-for-byte (no re-encoding).
+/// The heavy part (reading, cleaning or encoding, compressing) runs `workers` images at a time;
+/// `step` is called from those threads. A failure names the input it came from.
 pub fn images_to_pdf(
     paths: &[PathBuf],
     page_size: PageSize,
     margin: Margin,
-    step: Step<'_>,
-) -> Result<Document, AppError> {
+    workers: usize,
+    step: SharedStep<'_>,
+) -> Result<Document, ImageFailed> {
+    // After the first failure, images not started yet are skipped (inputs start in order, so the
+    // first failure by position is the one to report).
+    let stop = AtomicBool::new(false);
+    let prepared = crate::pool::map(paths.len(), workers, |i| {
+        if stop.load(Ordering::Relaxed) {
+            return Err(AppError::Cancelled);
+        }
+        let result = step(i).and_then(|()| prepare_image(&paths[i]));
+        if result.is_err() {
+            stop.store(true, Ordering::Relaxed);
+        }
+        result
+    });
+
     let mut doc = Document::with_version("1.5");
     let pages_id = doc.new_object_id();
     let mut kids = Vec::with_capacity(paths.len());
 
-    for (i, path) in paths.iter().enumerate() {
-        step(i)?;
-        let image = embed_image(&mut doc, path)?;
+    for (index, item) in prepared.into_iter().enumerate() {
+        let prepared = item
+            .unwrap_or_else(|| Err(AppError::internal("image worker stopped")))
+            .map_err(|error| ImageFailed { index, error })?;
+        let image = add_image(&mut doc, prepared);
         let swaps = image.orientation >= 5;
         let display = if swaps {
             (image.height, image.width)
@@ -117,73 +148,91 @@ struct EmbeddedImage {
     dpi: Option<(f64, f64)>,
 }
 
-fn embed_image(doc: &mut Document, path: &Path) -> Result<EmbeddedImage, AppError> {
-    let bytes = std::fs::read(path)?;
-    if let Some(info) = jpeg_info(&bytes).filter(|i| i.precision == 8) {
-        // Orientation and colour profile from the headers; the bytes themselves are embedded as-is.
-        let (orientation, icc) = {
-            let mut decoder = ImageReader::new(Cursor::new(&bytes))
-                .with_guessed_format()
-                .ok()
-                .and_then(|r| r.into_decoder().ok());
-            let orientation = decoder
-                .as_mut()
-                .and_then(|d| d.orientation().ok())
-                .map(|o| o.to_exif())
-                .unwrap_or(1);
-            let icc = decoder
-                .as_mut()
-                .and_then(|d| d.icc_profile().ok().flatten());
-            (orientation, icc)
-        };
-        let mut dict = dictionary! {
-            "Type" => "XObject",
-            "Subtype" => "Image",
-            "Width" => i64::from(info.width),
-            "Height" => i64::from(info.height),
-            "BitsPerComponent" => 8,
-            "Filter" => "DCTDecode",
-        };
-        match info.components {
-            1 => dict.set(
-                "ColorSpace",
-                color_space(doc, icc.as_deref(), 1, "DeviceGray"),
-            ),
-            3 => dict.set(
-                "ColorSpace",
-                color_space(doc, icc.as_deref(), 3, "DeviceRGB"),
-            ),
-            4 => {
-                dict.set(
-                    "ColorSpace",
-                    color_space(doc, icc.as_deref(), 4, "DeviceCMYK"),
-                );
-                if info.adobe {
-                    // Adobe CMYK JPEGs store inverted values.
-                    let decode: Vec<Object> = [1, 0, 1, 0, 1, 0, 1, 0].map(Object::from).to_vec();
-                    dict.set("Decode", decode);
-                }
+/// An image ready to go into the document: everything but its colour space, which needs the
+/// document (an ICC profile is an object of its own).
+struct PreparedImage {
+    stream: Stream,
+    icc: Option<Vec<u8>>,
+    components: i64,
+    device: &'static str,
+    width: u32,
+    height: u32,
+    orientation: u8,
+    dpi: Option<(f64, f64)>,
+}
+
+fn prepare_image(path: &Path) -> Result<PreparedImage, AppError> {
+    let bytes = if crate::heic::is_heic(path) {
+        // HEIC: store as a JPEG about as big as the original (not raw pixels), so the PDF stays small.
+        let picture = load(path)?;
+        let pixels = f64::from(picture.image.width()) * f64::from(picture.image.height());
+        let budget = picture.density.map(|d| d * pixels);
+        jpeg_near(&picture.image, picture.icc.as_deref(), budget)?.0
+    } else {
+        std::fs::read(path)?
+    };
+    let Some(info) = jpeg_info(&bytes).filter(|i| i.precision == 8) else {
+        return prepare_decoded(path);
+    };
+    // Orientation and colour profile from the headers; the bytes themselves are embedded as-is.
+    let (orientation, icc) = {
+        let mut decoder = ImageReader::new(Cursor::new(&bytes))
+            .with_guessed_format()
+            .ok()
+            .and_then(|r| r.into_decoder().ok());
+        let orientation = decoder
+            .as_mut()
+            .and_then(|d| d.orientation().ok())
+            .map(|o| o.to_exif())
+            .unwrap_or(1);
+        let icc = decoder
+            .as_mut()
+            .and_then(|d| d.icc_profile().ok().flatten());
+        (orientation, icc)
+    };
+    let mut dict = dictionary! {
+        "Type" => "XObject",
+        "Subtype" => "Image",
+        "Width" => i64::from(info.width),
+        "Height" => i64::from(info.height),
+        "BitsPerComponent" => 8,
+        "Filter" => "DCTDecode",
+    };
+    let (components, device) = match info.components {
+        1 => (1, "DeviceGray"),
+        3 => (3, "DeviceRGB"),
+        4 => {
+            if info.adobe {
+                // Adobe CMYK JPEGs store inverted values.
+                let decode: Vec<Object> = [1, 0, 1, 0, 1, 0, 1, 0].map(Object::from).to_vec();
+                dict.set("Decode", decode);
             }
-            _ => return embed_decoded(doc, path),
+            (4, "DeviceCMYK")
         }
-        let mut stream = Stream::new(dict, bytes);
-        stream.allows_compression = false;
-        return Ok(EmbeddedImage {
-            id: doc.add_object(stream),
-            width: info.width,
-            height: info.height,
-            orientation,
-            dpi: info.dpi,
-        });
-    }
-    embed_decoded(doc, path)
+        _ => return prepare_decoded(path),
+    };
+    // Location, camera and date info stays out of the PDF; the picture data is unchanged.
+    let bytes = metadata::clean_jpeg(&bytes, false)
+        .map(|c| c.bytes)
+        .unwrap_or(bytes);
+    let mut stream = Stream::new(dict, bytes);
+    stream.allows_compression = false;
+    Ok(PreparedImage {
+        stream,
+        icc,
+        components,
+        device,
+        width: info.width,
+        height: info.height,
+        orientation,
+        dpi: info.dpi,
+    })
 }
 
 /// Non-JPEG input: decode (orientation applied), flatten alpha on white, store losslessly (Flate).
-fn embed_decoded(doc: &mut Document, path: &Path) -> Result<EmbeddedImage, AppError> {
+fn prepare_decoded(path: &Path) -> Result<PreparedImage, AppError> {
     let picture = load(path)?;
     let rgb = flatten_on_white(&picture.image);
-    let space = color_space(doc, picture.icc.as_deref(), 3, "DeviceRGB");
     let (width, height) = rgb.dimensions();
     let mut stream = Stream::new(
         dictionary! {
@@ -191,19 +240,39 @@ fn embed_decoded(doc: &mut Document, path: &Path) -> Result<EmbeddedImage, AppEr
             "Subtype" => "Image",
             "Width" => i64::from(width),
             "Height" => i64::from(height),
-            "ColorSpace" => space,
             "BitsPerComponent" => 8,
         },
         rgb.into_raw(),
     );
     stream.compress().map_err(pdf_error)?;
-    Ok(EmbeddedImage {
-        id: doc.add_object(stream),
+    Ok(PreparedImage {
+        stream,
+        icc: picture.icc,
+        components: 3,
+        device: "DeviceRGB",
         width,
         height,
         orientation: 1,
         dpi: None,
     })
+}
+
+fn add_image(doc: &mut Document, prepared: PreparedImage) -> EmbeddedImage {
+    let mut stream = prepared.stream;
+    let space = color_space(
+        doc,
+        prepared.icc.as_deref(),
+        prepared.components,
+        prepared.device,
+    );
+    stream.dict.set("ColorSpace", space);
+    EmbeddedImage {
+        id: doc.add_object(stream),
+        width: prepared.width,
+        height: prepared.height,
+        orientation: prepared.orientation,
+        dpi: prepared.dpi,
+    }
 }
 
 /// `[/ICCBased <profile>]` when the image has a colour profile (PDF viewers ignore profiles inside
@@ -497,6 +566,10 @@ mod tests {
         p
     }
 
+    fn ok_step(_: usize) -> Result<(), AppError> {
+        Ok(())
+    }
+
     fn no_step() -> impl FnMut(usize) -> Result<(), AppError> {
         |_| Ok(())
     }
@@ -566,12 +639,12 @@ mod tests {
             .save(&png)
             .unwrap();
 
-        let mut step = no_step();
         let mut doc = images_to_pdf(
             &[upright.clone(), rotated.clone(), png],
             PageSize::Fit,
             Margin::None,
-            &mut step,
+            3,
+            &ok_step,
         )
         .unwrap();
         let doc = reload(&mut doc);
@@ -588,8 +661,16 @@ mod tests {
             first.dict.get(b"Filter").unwrap().as_name().unwrap(),
             b"DCTDecode"
         );
-        assert_eq!(first.content, upright_bytes, "JPEG must not be re-encoded");
-        assert_eq!(page_image(&doc, pages[1]).content, rotated_bytes);
+        // Not re-encoded: the same JPEG with only its metadata blocks removed.
+        let cleaned = |b: &[u8]| metadata::clean_jpeg(b, false).unwrap().bytes;
+        assert_eq!(
+            first.content,
+            cleaned(&upright_bytes),
+            "JPEG must not be re-encoded"
+        );
+        let second = page_image(&doc, pages[1]).content;
+        assert_eq!(second, cleaned(&rotated_bytes));
+        assert!(!second.windows(6).any(|w| w == b"Exif\0\0"));
         let third = page_image(&doc, pages[2]);
         assert_eq!(
             third.dict.get(b"Filter").unwrap().as_name().unwrap(),
@@ -638,7 +719,8 @@ mod tests {
             std::slice::from_ref(&img),
             PageSize::Fit,
             Margin::None,
-            &mut step,
+            1,
+            &ok_step,
         )
         .unwrap()
         .save(&one)
@@ -700,15 +782,21 @@ mod tests {
         let dir = temp_dir("cancel");
         let a = dir.join("a.jpg");
         std::fs::write(&a, jpeg(10, 10)).unwrap();
-        let mut step = |i: usize| {
+        let step = |i: usize| {
             if i == 1 {
                 Err(AppError::Cancelled)
             } else {
                 Ok(())
             }
         };
-        let result = images_to_pdf(&[a.clone(), a], PageSize::Fit, Margin::None, &mut step);
-        assert!(matches!(result, Err(AppError::Cancelled)));
+        let result = images_to_pdf(&[a.clone(), a], PageSize::Fit, Margin::None, 2, &step);
+        assert!(matches!(
+            result,
+            Err(ImageFailed {
+                index: 1,
+                error: AppError::Cancelled
+            })
+        ));
         std::fs::remove_dir_all(dir).unwrap();
     }
 
@@ -729,8 +817,7 @@ mod tests {
         .unwrap();
         std::fs::write(&path, &buf).unwrap();
 
-        let mut step = no_step();
-        let mut doc = images_to_pdf(&[path], PageSize::Fit, Margin::None, &mut step).unwrap();
+        let mut doc = images_to_pdf(&[path], PageSize::Fit, Margin::None, 1, &ok_step).unwrap();
         let doc = reload(&mut doc);
         let page = doc.get_pages().into_values().next().unwrap();
         let image = page_image(&doc, page);
@@ -746,5 +833,78 @@ mod tests {
         assert_eq!(profile.content, icc);
         assert_eq!(image.content, buf, "still embedded without re-encoding");
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn many_images_keep_their_order_and_a_bad_one_is_named() {
+        let dir = temp_dir("parallel");
+        let paths: Vec<PathBuf> = (0..12)
+            .map(|i| {
+                let p = dir.join(format!("{i:02}.jpg"));
+                std::fs::write(&p, jpeg(100 + i * 10, 50)).unwrap();
+                p
+            })
+            .collect();
+        let mut doc = images_to_pdf(&paths, PageSize::Fit, Margin::None, 4, &ok_step).unwrap();
+        let doc = reload(&mut doc);
+        let widths: Vec<i64> = doc
+            .get_pages()
+            .into_values()
+            .map(|page| {
+                page_image(&doc, page)
+                    .dict
+                    .get(b"Width")
+                    .unwrap()
+                    .as_i64()
+                    .unwrap()
+            })
+            .collect();
+        assert_eq!(widths, (0..12).map(|i| 100 + i * 10).collect::<Vec<_>>());
+
+        let mut with_bad = paths.clone();
+        let bad = dir.join("bad.png");
+        std::fs::write(&bad, b"not a png").unwrap();
+        with_bad.insert(5, bad);
+        let failed =
+            images_to_pdf(&with_bad, PageSize::Fit, Margin::None, 4, &ok_step).unwrap_err();
+        assert_eq!(failed.index, 5);
+        assert_eq!(failed.error.code(), "corrupt");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn location_and_camera_info_stay_out_of_the_pdf() {
+        let dir = temp_dir("private");
+        let photo = dir.join("phone.jpg");
+        std::fs::write(&photo, metadata::tests::phone_jpeg()).unwrap();
+        let mut doc = images_to_pdf(&[photo], PageSize::Fit, Margin::None, 1, &ok_step).unwrap();
+        let mut bytes = Vec::new();
+        doc.save_to(&mut bytes).unwrap();
+        for personal in [
+            &b"Apple"[..],
+            b"2026:10:22",
+            b"Sam",
+            b"taken at home",
+            b"depth map",
+        ] {
+            assert!(!bytes.windows(personal.len()).any(|w| w == personal));
+        }
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn heic_pages_are_stored_as_jpeg() {
+        let heic = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sideways-gps.heic");
+        let mut doc = images_to_pdf(&[heic], PageSize::Fit, Margin::None, 1, &ok_step).unwrap();
+        let doc = reload(&mut doc);
+        let page = doc.get_pages().into_values().next().unwrap();
+        let image = page_image(&doc, page);
+        assert_eq!(
+            image.dict.get(b"Filter").unwrap().as_name().unwrap(),
+            b"DCTDecode"
+        );
+        // Upright: stored 300 × 200, tagged sideways → a 200 × 300 page image.
+        assert_eq!(image.dict.get(b"Width").unwrap().as_i64().unwrap(), 200);
     }
 }

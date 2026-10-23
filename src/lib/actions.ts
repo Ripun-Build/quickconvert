@@ -11,6 +11,7 @@ export type ActionId =
   | "image_resize"
   | "image_crop"
   | "image_rotate"
+  | "strip_metadata"
   | "image_compress"
   | "pdf_merge"
   | "apply_preset";
@@ -52,7 +53,7 @@ export const ACTIONS: readonly ActionDef[] = [
     group: "convert",
     input: "image",
     minFiles: 1,
-    keywords: ["jpg", "jpeg", "png", "webp", "format"],
+    keywords: ["jpg", "jpeg", "png", "webp", "heic", "format"],
   },
   {
     id: "pdf_merge",
@@ -86,6 +87,14 @@ export const ACTIONS: readonly ActionDef[] = [
     input: "image",
     minFiles: 1,
     keywords: ["turn", "sideways", "upright", "flip", "orientation"],
+  },
+  {
+    id: "strip_metadata",
+    label: "Remove location & camera info",
+    group: "edit",
+    input: "image",
+    minFiles: 1,
+    keywords: ["privacy", "metadata", "exif", "gps", "location", "camera", "strip", "clean", "private"],
   },
   {
     id: "image_compress",
@@ -352,6 +361,12 @@ export const ACTION_SPECS: Partial<Record<ActionId, ActionSpec>> = {
     toRequest: () => {
       throw new Error("image_rotate needs a direction");
     },
+  },
+  strip_metadata: {
+    submit: "Remove info",
+    defaults: {},
+    fields: [],
+    toRequest: () => ({ action: "strip_metadata" }),
   },
   pdf_merge: {
     submit: "Merge",

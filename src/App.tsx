@@ -381,9 +381,15 @@ function App() {
     if (!job || v.name !== "error") return;
     // Per-file actions retry only the files that failed; combined outputs retry everything.
     const failed = new Set(v.done.failures.map((f) => f.name));
-    const perFile = ["image_convert", "image_resize", "image_crop", "image_rotate", "image_compress", "apply_preset"].includes(
-      job.request.action,
-    );
+    const perFile = [
+      "image_convert",
+      "image_resize",
+      "image_crop",
+      "image_rotate",
+      "strip_metadata",
+      "image_compress",
+      "apply_preset",
+    ].includes(job.request.action);
     const files = perFile ? job.files.filter((f) => failed.has(f.name)) : job.files;
     void launch({ ...job, files: files.length > 0 ? files : job.files });
   };

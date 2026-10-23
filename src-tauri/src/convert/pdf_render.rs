@@ -253,9 +253,9 @@ mod tests {
                 path
             })
             .collect();
-        let mut step = |_| Ok(());
+        let step = |_| Ok(());
         let pdf = dir.join(name);
-        images_to_pdf(&images, PageSize::Fit, Margin::None, &mut step)
+        images_to_pdf(&images, PageSize::Fit, Margin::None, 4, &step)
             .unwrap()
             .save(&pdf)
             .unwrap();
