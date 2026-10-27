@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { describeFonts, describeMadeWith, describeOutput, describeRemoved, formatBytes, presetSummary, truncateMiddle } from "./format.ts";
+import { describeCount, describeFonts, describeMadeWith, describeOutput, describeRemoved, formatBytes, presetSummary, truncateMiddle } from "./format.ts";
 
 test("sizes use decimal units like Finder", () => {
   assert.equal(formatBytes(512), "512 B");
@@ -64,4 +64,13 @@ test("font swaps are listed once, the rest counted", () => {
   );
   const many = ["A", "B", "C", "D", "E", "F"].map((f) => swap(f, "Helvetica Neue"));
   assert.match(describeFonts([{ fontsReplaced: many }]) ?? "", /D → Helvetica Neue and 2 more\.$/);
+});
+
+test("the header names what's selected", () => {
+  const f = (kind: "image" | "pdf" | "document") => ({ path: "/p/x", name: "x", kind, size: 1 });
+  assert.equal(describeCount([f("image"), f("image")]), "2 images");
+  assert.equal(describeCount([f("pdf")]), "1 PDF");
+  assert.equal(describeCount([f("document"), f("document")]), "2 documents");
+  assert.equal(describeCount([f("document")]), "1 document");
+  assert.equal(describeCount([f("pdf"), f("document")]), "2 files");
 });

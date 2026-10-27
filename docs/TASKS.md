@@ -108,7 +108,7 @@ v0.1.0 is public, so Phase 2 ships as an update of the same app: settings and pr
 ### M12 — v0.2.0 release
 - [x] Version 0.2.0, release notes, README (use + screenshots) for the new behaviour, v0.1.0 settings/presets still load, universal DMG, GitHub release
 
-## v0.3 — Office documents (before Phase 3)
+## v0.3.0 — Word, PowerPoint and Excel → PDF
 
 ### M14 — Word, PowerPoint and Excel → PDF
 - [x] Document file type (Word / PowerPoint / Excel extensions) with Quick Look thumbnails, in the menu, search and file picker
@@ -117,6 +117,11 @@ v0.1.0 is public, so Phase 2 ships as an update of the same app: settings and pr
 - [x] OfficeView: cards per type, ⓘ details panel, remembered pick (Settings → Conversions), "Made with" in the result
 - [x] Missing fonts swapped for the closest installed ones in a temporary copy (built-in list, PANOSE / family class, name), every way of converting; LibreOffice given the Mac's font folders; swaps listed in the result and explained in ⓘ
 - [x] Install buttons: App Store pages for Apple's apps (detected automatically once installed); LibreOffice downloaded, SHA-256 checked and installed by QuickConvert after a confirmation
+
+### M16 — v0.3.0 release
+- [x] Version 0.3.0, release notes, README (Office documents, the Install LibreOffice download), universal DMG, GitHub release
+
+## v0.4 — PDF → Office documents (next update)
 
 ### M15 — PDF → Word, PowerPoint and Excel
 - [ ] PDF → Word (editable text and pictures), PDF → PowerPoint (pages as pictures, text in notes), PDF → Excel (tables found from text positions)

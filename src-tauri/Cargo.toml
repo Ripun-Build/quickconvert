@@ -1,6 +1,6 @@
 [package]
 name = "quickconvert"
-version = "0.2.0"
+version = "0.3.0"
 description = "Convert, compress and crop files from a popup at your cursor"
 authors = ["Ripunjoy Brahma"]
 edition = "2021"

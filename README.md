@@ -1,7 +1,7 @@
 # QuickConvert
 
-Select files in Finder → press **⌃⇧Space** → convert, compress, crop or tidy them from a small popup at your cursor. Works with photos (including iPhone HEIC) and PDFs.
-Offline and private: your files never leave your Mac.
+Select files in Finder → press **⌃⇧Space** → convert, compress, crop or tidy them from a small popup at your cursor. Works with photos (including iPhone HEIC), PDFs, and Word, PowerPoint and Excel files.
+Offline and private: your files never leave your Mac. QuickConvert only goes online if you ask it to install LibreOffice.
 
 ![The QuickConvert popup next to a Finder selection](docs/screenshots/popup.png)
 
@@ -32,6 +32,22 @@ iPhone **HEIC** photos work with every action. Results that keep the format are 
 | **Rotate pages** | Like *Rotate* for photos: sideways pages are found and turned, or click pages to turn them. Nothing is re-saved, so quality stays the same. |
 | **Make PDF smaller** | Smallest, Balanced or Print, with the real new size shown before you start. Scanned pages and photos are made smaller; text stays sharp. |
 
+**Word, PowerPoint and Excel** (`.docx .doc .rtf .odt .pages`, `.pptx .ppt .key .odp`, `.xlsx .xls .xlsm .xlsb .ods .csv .numbers`)
+
+| Action | Details |
+|---|---|
+| **Word to PDF · PowerPoint to PDF · Excel to PDF** | Choose how each kind of file becomes a PDF. **Quick (built in)** works for Word and Excel straight away, with nothing to install, but isn't 100% the same as the original. For an **exact copy**, QuickConvert uses Pages, Keynote, Numbers or LibreOffice when one is installed, automatically. The **ⓘ** next to each choice says what it is, why it's better, which version you have and how big it is. |
+| **Install** | No app for a file type yet? **Install** opens the App Store page for Pages, Keynote or Numbers (free, from Apple), or downloads LibreOffice (free) from libreoffice.org, checks it's the genuine file and installs it into Applications for you, after asking first. |
+
+PowerPoint files (and `.key`, `.pages`, `.numbers`) need Keynote, Pages, Numbers or LibreOffice. Fonts the file uses that your Mac doesn't have are swapped for the closest ones it does (for example Univers → Helvetica Neue) in a temporary copy, so nothing needs downloading; the result tells you which fonts were swapped.
+
+![Convert to PDF: choose how each kind of file is made](docs/screenshots/office.png)
+
+| | |
+|---|---|
+| ![Excel to PDF suggested for a spreadsheet](docs/screenshots/doc-menu.png) | ![Result: made with LibreOffice, fonts swapped](docs/screenshots/result-office.png) |
+| ![Installing LibreOffice from inside QuickConvert](docs/screenshots/install-progress.png) | ![Settings: how each kind of file is made](docs/screenshots/settings-office.png) |
+
 Every action writes a new file next to the original (or into a folder you choose) and never changes or overwrites the original.
 
 | | |
@@ -50,7 +66,7 @@ Every action writes a new file next to the original (or into a folder you choose
 
 ## Updating
 
-QuickConvert doesn't check for updates by itself yet. To get a new version (for example from 0.1 to 0.2):
+QuickConvert doesn't check for updates by itself yet. To get a new version (for example from 0.2 to 0.3):
 
 1. **Quit QuickConvert first:** menu bar icon → **Quit**. If the old version keeps running, both fight over the shortcut.
 2. Download the new `.dmg` from [Releases](https://github.com/Ripun-Build/quickconvert/releases), drag **QuickConvert** to **Applications** and choose **Replace**.
@@ -65,7 +81,7 @@ Your settings, presets and *Launch at login* carry over. To hear about new versi
 - Type to search, use **↑ ↓** and **Return**, or press **1–9**. **Esc** goes back one step.
 - The popup stays open until you close it with its **×** or **⌘W**, so you can drag more files in or switch apps. Drag its top bar to move it.
 - No selection? The popup opens as a drop zone: drag files in or click **Choose files…**.
-- **Settings** (menu bar icon → Settings…, the ⚙ in the popup, or **⌘,**): change the shortcut, appearance (System / Light / Dark), where files are saved, default quality and sizes, presets, and launch at login.
+- **Settings** (menu bar icon → Settings…, the ⚙ in the popup, or **⌘,**): change the shortcut, appearance (System / Light / Dark), where files are saved, default quality and sizes, presets, how Word, PowerPoint and Excel files are made into PDFs, and launch at login.
 
 ## Build from source
 

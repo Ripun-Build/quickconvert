@@ -102,16 +102,16 @@ export function Result({ done, autoHide, onAutoHide }: { done: JobDone; autoHide
         <p className="type-caption text-caution">Couldn't save in this folder, so the file was saved to Downloads.</p>
       )}
       <div className="flex gap-2">
-        <Button className="flex-1" onClick={() => void revealOutput(outputs[0]).catch(() => {})}>
+        <Button className="flex-auto whitespace-nowrap" onClick={() => void revealOutput(outputs[0]).catch(() => {})}>
           <FolderOpen size={14} strokeWidth={1.75} />
           Show in folder
         </Button>
         {single && (
-          <Button className="flex-1" onClick={() => void openOutput(outputs[0]).catch(() => {})}>
+          <Button className="flex-auto whitespace-nowrap" onClick={() => void openOutput(outputs[0]).catch(() => {})}>
             Open
           </Button>
         )}
-        <Button className="flex-1" onClick={copy}>
+        <Button className="flex-auto whitespace-nowrap" onClick={copy}>
           <Copy size={14} strokeWidth={1.75} />
           {copied ? "Copied" : single ? "Copy path" : "Copy paths"}
         </Button>

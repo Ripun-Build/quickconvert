@@ -23,12 +23,13 @@ export function truncateMiddle(name: string, max = 28): string {
   return `${name.slice(0, keepStart)}…${name.slice(-keepEnd)}`;
 }
 
-/** "12 images", "3 PDFs", "5 files". */
+/** "12 images", "3 PDFs", "2 documents", or "5 files" for a mix. */
 export function describeCount(files: readonly FileInfo[]): string {
   const n = files.length;
-  const images = files.filter((f) => f.kind === "image").length;
-  if (images === n) return `${n} ${n === 1 ? "image" : "images"}`;
-  if (images === 0) return `${n} ${n === 1 ? "PDF" : "PDFs"}`;
+  const all = (kind: FileInfo["kind"]) => files.every((f) => f.kind === kind);
+  if (all("image")) return `${n} ${n === 1 ? "image" : "images"}`;
+  if (all("pdf")) return `${n} ${n === 1 ? "PDF" : "PDFs"}`;
+  if (all("document")) return `${n} ${n === 1 ? "document" : "documents"}`;
   return `${n} files`;
 }
 
