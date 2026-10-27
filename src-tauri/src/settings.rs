@@ -37,6 +37,18 @@ pub struct Settings {
     pub appearance: Appearance,
     /// Hide the popup 2.5 s after a successful conversion.
     pub auto_hide: bool,
+    /// Convert to PDF: how each Office file type is made (None = the best way available).
+    pub office: OfficeChoices,
+}
+
+/// Remembered per Office file type; an app that isn't installed any more falls back to the best
+/// way available.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct OfficeChoices {
+    pub word: Option<crate::office::Engine>,
+    pub slides: Option<crate::office::Engine>,
+    pub sheet: Option<crate::office::Engine>,
 }
 
 impl Default for Settings {
@@ -49,6 +61,7 @@ impl Default for Settings {
             pdf_dpi: 150,
             appearance: Appearance::System,
             auto_hide: true,
+            office: OfficeChoices::default(),
         }
     }
 }
@@ -171,6 +184,7 @@ mod tests {
                 pdf_dpi: 300,
                 appearance: Appearance::Dark,
                 auto_hide: false,
+                office: OfficeChoices::default(),
             }
         );
         std::fs::remove_dir_all(dir).unwrap();

@@ -1,5 +1,5 @@
 // Display formatting for file names, sizes and counts.
-import type { FileInfo, Removed } from "./types";
+import type { Engine, FileInfo, FontSwap, Removed } from "./types";
 
 /** Decimal units, matching Finder: 2.4 MB, 38 MB, 512 KB. */
 export function formatBytes(bytes: number): string {
@@ -89,4 +89,30 @@ export function describeRemoved(outputs: readonly { removed?: Removed }[]): stri
   return had === found.length
     ? `Removed ${what} from all ${found.length} images.`
     : `Removed ${what} (${had} of ${found.length} images had some).`;
+}
+
+const MADE_WITH: Record<Engine, string> = {
+  quick: "Quick (built in)",
+  pages: "Pages",
+  keynote: "Keynote",
+  numbers: "Numbers",
+  libreoffice: "LibreOffice",
+};
+
+/** Convert to PDF: "Fonts not on this Mac were replaced with similar ones: Univers → Helvetica Neue."
+ * Each swap once across all files; after four, "and 3 more". Undefined when nothing was swapped. */
+export function describeFonts(outputs: readonly { fontsReplaced?: FontSwap[] }[]): string | undefined {
+  const swaps = [...new Set(outputs.flatMap((o) => o.fontsReplaced ?? []).map((s) => `${s.from} → ${s.to}`))];
+  if (swaps.length === 0) return undefined;
+  const shown = swaps.slice(0, 4).join(", ");
+  const more = swaps.length > 4 ? ` and ${swaps.length - 4} more` : "";
+  return `Fonts not on this Mac were replaced with similar ones: ${shown}${more}.`;
+}
+
+/** Convert to PDF: "Made with Keynote", or a note that Quick isn't an exact copy. Undefined otherwise. */
+export function describeMadeWith(outputs: readonly { madeWith?: Engine }[]): string | undefined {
+  const engines = [...new Set(outputs.flatMap((o) => (o.madeWith ? [o.madeWith] : [])))];
+  if (engines.length === 0) return undefined;
+  const names = listJoin(engines.map((e) => MADE_WITH[e]));
+  return engines.includes("quick") ? `Made with ${names}. Quick copies are close to the original, not 100% the same.` : `Made with ${names}.`;
 }

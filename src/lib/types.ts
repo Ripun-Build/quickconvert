@@ -32,8 +32,34 @@ export interface PopupShowPayload {
   reading: boolean;
 }
 
-/** `files::FileKind` */
-export type FileKind = "image" | "pdf";
+/** `files::FileKind`: documents are Word, PowerPoint and Excel files. */
+export type FileKind = "image" | "pdf" | "document";
+
+/** `office::Engine`: a way to make a PDF of an Office file. */
+export type Engine = "quick" | "pages" | "keynote" | "numbers" | "libreoffice";
+
+/** `office::EngineInfo` */
+export interface EngineInfo {
+  engine: Engine;
+  installed: boolean;
+  version: string | null;
+  path: string | null;
+}
+
+/** `office::install::Progress`: payload of `office://install`. */
+export interface InstallProgress {
+  phase: "downloading" | "checking" | "installing" | "done" | "failed" | "cancelled";
+  received: number;
+  total: number;
+  message: string | null;
+  path: string | null;
+}
+
+/** `commands::LibreOfficePackage` */
+export interface LibreOfficePackage {
+  version: string;
+  bytes: number;
+}
 
 /** `files::FileInfo` */
 export interface FileInfo {
@@ -149,7 +175,13 @@ export type JobRequest =
   | { action: "pdf_extract"; pages: number[] }
   /** Quarter turns added to pages, keyed by 1-based page number. */
   | { action: "pdf_rotate"; turns: Record<string, Turn> }
-  | { action: "pdf_compress"; level: PdfLevel };
+  | { action: "pdf_compress"; level: PdfLevel }
+  /** Word / PowerPoint / Excel → PDF; `engines` keyed "word" | "slides" | "sheet". */
+  | {
+      action: "office_to_pdf";
+      engines: Partial<Record<"word" | "slides" | "sheet", Engine>>;
+      quick: { a4: boolean; landscape: boolean; firstSheetOnly: boolean };
+    };
 
 /** `pdf_compress::Level` */
 export type PdfLevel = "smallest" | "balanced" | "print";
@@ -193,6 +225,16 @@ export interface OutputFile {
   quality?: number;
   /** Remove info: what was removed. */
   removed?: Removed;
+  /** Convert to PDF: how it was made. */
+  madeWith?: Engine;
+  /** Convert to PDF: fonts not on this Mac, and what was used instead. */
+  fontsReplaced?: FontSwap[];
+}
+
+/** One font swapped for a lookalike (`office::fonts::FontSwap`). */
+export interface FontSwap {
+  from: string;
+  to: string;
 }
 
 /** Payload of the `job://done` event (`jobs::JobDone`). */
@@ -217,6 +259,8 @@ export interface Settings {
   pdfDpi: number;
   appearance: "system" | "light" | "dark";
   autoHide: boolean;
+  /** Convert to PDF: the way remembered per Office file type (null = best available). */
+  office: { word: Engine | null; slides: Engine | null; sheet: Engine | null };
 }
 
 /** `commands::SettingsView`: settings plus what the Settings window shows alongside them. */

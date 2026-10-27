@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { describeOutput, describeRemoved, formatBytes, presetSummary, truncateMiddle } from "./format.ts";
+import { describeFonts, describeMadeWith, describeOutput, describeRemoved, formatBytes, presetSummary, truncateMiddle } from "./format.ts";
 
 test("sizes use decimal units like Finder", () => {
   assert.equal(formatBytes(512), "512 B");
@@ -44,4 +44,24 @@ test("remove-info results say what was taken out", () => {
     "Removed location and camera info (2 of 3 images had some).",
   );
   assert.equal(describeRemoved([{ removed: all }, { removed: all }]), "Removed location, camera and date info and other details from all 2 images.");
+});
+
+test("Convert to PDF results say how they were made", () => {
+  assert.equal(describeMadeWith([{}]), undefined);
+  assert.equal(describeMadeWith([{ madeWith: "keynote" }, { madeWith: "keynote" }]), "Made with Keynote.");
+  assert.equal(
+    describeMadeWith([{ madeWith: "pages" }, { madeWith: "quick" }]),
+    "Made with Pages and Quick (built in). Quick copies are close to the original, not 100% the same.",
+  );
+});
+
+test("font swaps are listed once, the rest counted", () => {
+  assert.equal(describeFonts([{}, { fontsReplaced: [] }]), undefined);
+  const swap = (from: string, to: string) => ({ from, to });
+  assert.equal(
+    describeFonts([{ fontsReplaced: [swap("Univers", "Helvetica Neue")] }, { fontsReplaced: [swap("Univers", "Helvetica Neue")] }]),
+    "Fonts not on this Mac were replaced with similar ones: Univers → Helvetica Neue.",
+  );
+  const many = ["A", "B", "C", "D", "E", "F"].map((f) => swap(f, "Helvetica Neue"));
+  assert.match(describeFonts([{ fontsReplaced: many }]) ?? "", /D → Helvetica Neue and 2 more\.$/);
 });

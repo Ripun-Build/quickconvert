@@ -72,6 +72,98 @@ pub async fn rotate_check(
     blocking(move || crate::upright::check(&PathBuf::from(path), size.clamp(64, 1024))).await
 }
 
+/// Convert to PDF: every way to make the PDF and whether its app is installed (and which version).
+#[tauri::command]
+pub async fn office_engines() -> Result<Vec<crate::office::EngineInfo>, AppError> {
+    blocking(|| Ok(crate::office::engines())).await
+}
+
+/// Open an Apple app's page in the App Store (other apps can't install them).
+#[tauri::command]
+pub fn office_open_store(app: AppHandle, engine: crate::office::Engine) -> Result<(), AppError> {
+    use crate::office::Engine;
+    let id = match engine {
+        Engine::Pages => "409201541",
+        Engine::Keynote => "409183694",
+        Engine::Numbers => "409203825",
+        _ => return Err(AppError::internal("not an App Store app")),
+    };
+    app.opener()
+        .open_url(
+            format!("macappstore://apps.apple.com/app/id{id}"),
+            None::<&str>,
+        )
+        .map_err(|e| AppError::internal(e.to_string()))
+}
+
+/// Install LibreOffice in the background (after the user confirmed); progress arrives as
+/// `office://install`. Does nothing if an install is already running.
+#[tauri::command]
+pub fn office_install_libreoffice(app: AppHandle) {
+    use crate::office::install::{self, InstallState, Phase, Progress};
+    use std::sync::atomic::Ordering;
+    let state = app.state::<InstallState>();
+    if state.running.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    state.cancel.store(false, Ordering::SeqCst);
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let state = app.state::<InstallState>();
+        let report = |p: Progress| {
+            if let Ok(mut last) = state.last.lock() {
+                *last = Some(p.clone());
+            }
+            let _ = app.emit("office://install", p);
+        };
+        let package = install::package();
+        let total = package.bytes;
+        let result = install::install(&package, &crate::office::app_dirs(), &state.cancel, &report);
+        let mut end = Progress::at(Phase::Done, total, total);
+        match result {
+            Ok(path) => end.path = Some(path.to_string_lossy().into_owned()),
+            Err(AppError::Cancelled) => end.phase = Phase::Cancelled,
+            Err(err) => {
+                end.phase = Phase::Failed;
+                end.message = Some(err.to_string());
+            }
+        }
+        report(end);
+        state.running.store(false, Ordering::SeqCst);
+    });
+}
+
+/// What Install LibreOffice would download on this Mac: version and size.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibreOfficePackage {
+    pub version: &'static str,
+    pub bytes: u64,
+}
+
+#[tauri::command]
+pub fn office_libreoffice_package() -> LibreOfficePackage {
+    LibreOfficePackage {
+        version: crate::office::install::VERSION,
+        bytes: crate::office::install::package().bytes,
+    }
+}
+
+/// The LibreOffice install's latest progress (None if none ran this session).
+#[tauri::command]
+pub fn office_install_status(
+    state: State<'_, crate::office::install::InstallState>,
+) -> Option<crate::office::install::Progress> {
+    state.last.lock().ok().and_then(|l| l.clone())
+}
+
+#[tauri::command]
+pub fn office_cancel_install(state: State<'_, crate::office::install::InstallState>) {
+    state
+        .cancel
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+}
+
 /// Page tray: a sharp thumbnail and the photo's upright proportions.
 #[tauri::command]
 pub async fn tray_thumbnail(path: String) -> Result<files::Preview, AppError> {

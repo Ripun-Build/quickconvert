@@ -1,6 +1,7 @@
 // File thumbnail: image preview from Rust, or a type icon (PDFs, loading, unreadable files).
 import { useEffect, useState } from "react";
-import { FileText, Image as ImageIcon } from "lucide-react";
+import { FileSpreadsheet, FileText, Image as ImageIcon, Presentation } from "lucide-react";
+import { docType } from "../lib/office";
 import { thumbnail } from "../lib/ipc";
 import type { FileInfo } from "../lib/types";
 
@@ -10,7 +11,8 @@ export function Thumbnail({ file, className = "" }: { file: FileInfo; className?
   const [src, setSrc] = useState<string | undefined>(() => cache.get(file.path));
 
   useEffect(() => {
-    if (file.kind !== "image" || cache.has(file.path)) {
+    // Images and Office documents have previews; PDFs show an icon.
+    if (file.kind === "pdf" || cache.has(file.path)) {
       setSrc(cache.get(file.path));
       return;
     }
@@ -26,7 +28,8 @@ export function Thumbnail({ file, className = "" }: { file: FileInfo; className?
     };
   }, [file.path, file.kind]);
 
-  const Icon = file.kind === "pdf" ? FileText : ImageIcon;
+  const type = file.kind === "document" ? docType(file.name) : null;
+  const Icon = type === "slides" ? Presentation : type === "sheet" ? FileSpreadsheet : file.kind === "image" ? ImageIcon : FileText;
   return (
     <div
       className={`flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-thumb bg-surface ring-[0.5px] ring-separator ${className}`}

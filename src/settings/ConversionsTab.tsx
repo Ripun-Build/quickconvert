@@ -6,10 +6,43 @@ import { Slider } from "../components/Fields";
 import { Segmented } from "../components/Segmented";
 import { chooseFolder } from "../lib/ipc";
 import { SIZES } from "../lib/pages";
-import type { Settings } from "../lib/types";
+import type { Engine, Settings } from "../lib/types";
 import { Group, Row } from "./ui";
 
 const SAVE_DELAY_MS = 300;
+
+/** Convert to PDF: the ways offered per Office file type ("auto" = the best way available). */
+const OFFICE_ROWS: { key: "word" | "slides" | "sheet"; label: string; choices: { value: string; label: string }[] }[] = [
+  {
+    key: "word",
+    label: "Word to PDF",
+    choices: [
+      { value: "auto", label: "Auto" },
+      { value: "quick", label: "Quick" },
+      { value: "pages", label: "Pages" },
+      { value: "libreoffice", label: "LibreOffice" },
+    ],
+  },
+  {
+    key: "slides",
+    label: "PowerPoint to PDF",
+    choices: [
+      { value: "auto", label: "Auto" },
+      { value: "keynote", label: "Keynote" },
+      { value: "libreoffice", label: "LibreOffice" },
+    ],
+  },
+  {
+    key: "sheet",
+    label: "Excel to PDF",
+    choices: [
+      { value: "auto", label: "Auto" },
+      { value: "quick", label: "Quick" },
+      { value: "numbers", label: "Numbers" },
+      { value: "libreoffice", label: "LibreOffice" },
+    ],
+  },
+];
 
 export function ConversionsTab({ settings, onChange }: { settings: Settings; onChange: (patch: Partial<Settings>) => void }) {
   const folder = settings.output.kind === "folder" ? settings.output.path : null;
@@ -110,6 +143,27 @@ export function ConversionsTab({ settings, onChange }: { settings: Settings; onC
             />
           </div>
         </Row>
+      </Group>
+
+      <Group title="Word, PowerPoint and Excel to PDF">
+        {OFFICE_ROWS.map((row) => (
+          <Row
+            key={row.key}
+            label={row.label}
+            description="Auto uses the best way available. If the app you pick isn't installed, Auto is used."
+          >
+            <div className="w-[264px]">
+              <Segmented
+                label={row.label}
+                value={settings.office?.[row.key] ?? "auto"}
+                choices={row.choices}
+                onChange={(v) =>
+                  onChange({ office: { ...settings.office, [row.key]: v === "auto" ? null : (v as Engine) } })
+                }
+              />
+            </div>
+          </Row>
+        ))}
       </Group>
     </>
   );

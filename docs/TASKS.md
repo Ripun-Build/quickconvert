@@ -108,6 +108,19 @@ v0.1.0 is public, so Phase 2 ships as an update of the same app: settings and pr
 ### M12 — v0.2.0 release
 - [x] Version 0.2.0, release notes, README (use + screenshots) for the new behaviour, v0.1.0 settings/presets still load, universal DMG, GitHub release
 
+## v0.3 — Office documents (before Phase 3)
+
+### M14 — Word, PowerPoint and Excel → PDF
+- [x] Document file type (Word / PowerPoint / Excel extensions) with Quick Look thumbnails, in the menu, search and file picker
+- [x] Quick (built in): Word via macOS's text engine, Excel/CSV via `calamine` tables (columns sized, any language, a page per sheet); "not 100% the same" said everywhere
+- [x] Exact copies with Pages / Keynote / Numbers (AppleScript) and LibreOffice (headless), time limits, one at a time per app
+- [x] OfficeView: cards per type, ⓘ details panel, remembered pick (Settings → Conversions), "Made with" in the result
+- [x] Missing fonts swapped for the closest installed ones in a temporary copy (built-in list, PANOSE / family class, name), every way of converting; LibreOffice given the Mac's font folders; swaps listed in the result and explained in ⓘ
+- [x] Install buttons: App Store pages for Apple's apps (detected automatically once installed); LibreOffice downloaded, SHA-256 checked and installed by QuickConvert after a confirmation
+
+### M15 — PDF → Word, PowerPoint and Excel
+- [ ] PDF → Word (editable text and pictures), PDF → PowerPoint (pages as pictures, text in notes), PDF → Excel (tables found from text positions)
+
 ## Later updates
 - [ ] Other OS: implement real selection, test, package (its own update, once it can be tested on Windows)
 

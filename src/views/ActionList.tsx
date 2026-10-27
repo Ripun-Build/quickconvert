@@ -2,7 +2,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { ActionRow } from "../components/ActionRow";
-import { buildMenu, filterMenu, flatActions, type ActionDef, type InputKind } from "../lib/actions";
+import { buildMenu, filterMenu, flatActions, withLabel, type ActionDef, type InputKind } from "../lib/actions";
+import { convertLabel } from "../lib/office";
 import type { FileSet } from "../lib/types";
 
 const LIST_ID = "action-list";
@@ -19,7 +20,15 @@ export function ActionList({ set, onRun }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
   const [scrollable, setScrollable] = useState(false);
 
-  const menu = useMemo(() => buildMenu(set.files.map((f) => f.kind)), [set]);
+  const menu = useMemo(
+    () =>
+      withLabel(
+        buildMenu(set.files.map((f) => f.kind)),
+        "office_to_pdf",
+        convertLabel(set.files.filter((f) => f.kind === "document")),
+      ),
+    [set],
+  );
   const filtered = useMemo(() => filterMenu(menu, query), [menu, query]);
   const flat = useMemo(() => flatActions(filtered), [filtered]);
   const scopeOf = (action: ActionDef) =>

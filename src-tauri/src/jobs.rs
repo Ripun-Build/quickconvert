@@ -84,6 +84,14 @@ pub enum JobRequest {
     PdfCompress {
         level: Level,
     },
+    /// Word / PowerPoint / Excel → PDF. `engines` holds the way picked per type ("word",
+    /// "slides", "sheet"); a type without a pick uses the best way available.
+    OfficeToPdf {
+        #[serde(default)]
+        engines: HashMap<String, crate::office::Engine>,
+        #[serde(default)]
+        quick: crate::office::QuickOptions,
+    },
 }
 
 #[derive(Clone, Serialize)]
@@ -104,13 +112,17 @@ pub struct Failure {
 }
 
 /// What an image output ended up as (shown in the Result view: "48 KB · 200×230 · quality 78").
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Detail {
     pub width: Option<u32>,
     pub height: Option<u32>,
     pub quality: Option<u8>,
     /// Remove-info action: what was found and removed.
     pub removed: Option<Found>,
+    /// Convert to PDF: how it was made.
+    pub made_with: Option<crate::office::Engine>,
+    /// Convert to PDF: fonts not on this Mac, and what was used instead.
+    pub fonts_replaced: Vec<crate::office::fonts::FontSwap>,
 }
 
 #[derive(Debug, Serialize)]
@@ -126,6 +138,10 @@ pub struct OutputFile {
     pub quality: Option<u8>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub removed: Option<Found>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub made_with: Option<crate::office::Engine>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub fonts_replaced: Vec<crate::office::fonts::FontSwap>,
 }
 
 #[derive(Debug, Serialize)]
@@ -309,16 +325,19 @@ pub fn run(
                   result: Result<(Written, Option<Detail>), AppError>| match result
     {
         Ok((written, detail)) => {
+            let detail = detail.unwrap_or_default();
             done.saved_to_fallback |= written.fell_back;
             done.outputs.push(OutputFile {
                 bytes: std::fs::metadata(&written.path)
                     .map(|m| m.len())
                     .unwrap_or(0),
                 path: written.path.to_string_lossy().into_owned(),
-                width: detail.and_then(|d| d.width),
-                height: detail.and_then(|d| d.height),
-                quality: detail.and_then(|d| d.quality),
-                removed: detail.and_then(|d| d.removed),
+                width: detail.width,
+                height: detail.height,
+                quality: detail.quality,
+                removed: detail.removed,
+                made_with: detail.made_with,
+                fonts_replaced: detail.fonts_replaced,
             });
         }
         Err(AppError::Cancelled) => done.cancelled = true,
@@ -443,7 +462,8 @@ pub fn run(
         | JobRequest::ImageCrop { .. }
         | JobRequest::ImageRotate { .. }
         | JobRequest::StripMetadata
-        | JobRequest::PdfCompress { .. } => {
+        | JobRequest::PdfCompress { .. }
+        | JobRequest::OfficeToPdf { .. } => {
             // A few files at once; files already started finish when the job is cancelled.
             let results = crate::pool::map(count, places.workers, |i| {
                 if is_cancelled() {
@@ -477,6 +497,9 @@ fn convert_one(
         JobRequest::StripMetadata => return strip_one(path, out_dir, fallback),
         JobRequest::PdfCompress { level } => {
             return compress_pdf_one(path, *level, out_dir, fallback)
+        }
+        JobRequest::OfficeToPdf { engines, quick } => {
+            return office_one(path, engines, *quick, out_dir, fallback)
         }
         _ => {}
     }
@@ -641,12 +664,39 @@ fn compress_pdf_one(
     Ok((written, None))
 }
 
+/// One Office file → `<name>.pdf`, made the way picked for its type (or the best available).
+fn office_one(
+    path: &Path,
+    engines: &HashMap<String, crate::office::Engine>,
+    quick: crate::office::QuickOptions,
+    out_dir: &Path,
+    fallback: Option<&Path>,
+) -> Result<(Written, Option<Detail>), AppError> {
+    use crate::office::{self, DocType};
+    let key = match DocType::of(path) {
+        Some(DocType::Word) => "word",
+        Some(DocType::Slides) => "slides",
+        Some(DocType::Sheet) => "sheet",
+        None => return Err(AppError::internal("not an Office file")),
+    };
+    let engine = office::choose(path, engines.get(key).copied(), &office::engines())?;
+    let made = office::to_pdf(path, engine, quick)?;
+    let name = output::converted_name(path, "pdf");
+    let written = output::write_output(out_dir, fallback, &name, |w| Ok(w.write_all(&made.pdf)?))?;
+    let detail = Detail {
+        made_with: Some(engine),
+        fonts_replaced: made.fonts,
+        ..Detail::default()
+    };
+    Ok((written, Some(detail)))
+}
+
 fn detail_of(image: &image::DynamicImage, quality: Option<u8>) -> Detail {
     Detail {
         width: Some(image.width()),
         height: Some(image.height()),
         quality,
-        removed: None,
+        ..Detail::default()
     }
 }
 
@@ -704,10 +754,8 @@ fn strip_one(
     let name = output::suffixed_name(path, "clean", &extension);
     let written = output::write_output(out_dir, fallback, &name, |w| Ok(w.write_all(&bytes)?))?;
     let detail = Detail {
-        width: None,
-        height: None,
-        quality: None,
         removed: Some(found),
+        ..Detail::default()
     };
     Ok((written, Some(detail)))
 }
@@ -722,7 +770,7 @@ fn write_encoded(
         width: Some(encoded.width),
         height: Some(encoded.height),
         quality: encoded.quality,
-        removed: None,
+        ..Detail::default()
     };
     let written =
         output::write_output(
@@ -1118,6 +1166,57 @@ mod tests {
         fs::remove_dir_all(dir).unwrap();
     }
 
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn office_files_become_pdfs_and_say_how() {
+        let dir = temp_dir("office");
+        let xlsx = dir.join("budget.xlsx");
+        fs::copy(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/budget.xlsx"),
+            &xlsx,
+        )
+        .unwrap();
+        let csv = dir.join("scores.csv");
+        fs::write(&csv, "Name,Score\nAsha,91\n").unwrap();
+        let pptx = dir.join("deck.pptx");
+        fs::write(&pptx, b"PK not really a deck").unwrap();
+        let before = snapshot(&[xlsx.clone(), csv.clone(), pptx.clone()]);
+
+        let request = JobRequest::OfficeToPdf {
+            engines: HashMap::from([("sheet".to_string(), crate::office::Engine::Quick)]),
+            quick: crate::office::QuickOptions::default(),
+        };
+        let done = run_quiet(request, &[xlsx.clone(), csv.clone()]);
+        assert!(done.failures.is_empty(), "{:?}", done.failures);
+        assert_eq!(names(&done), ["budget.pdf", "scores.pdf"]);
+        assert!(done
+            .outputs
+            .iter()
+            .all(|o| o.made_with == Some(crate::office::Engine::Quick)));
+
+        // Without Keynote or LibreOffice, PowerPoint says what to install (skipped on a Mac that
+        // has one, where it would really convert).
+        let has_app = crate::office::engines().iter().any(|e| {
+            e.installed && e.engine != crate::office::Engine::Quick && e.engine.handles(&pptx)
+        });
+        if !has_app {
+            let done = run_quiet(
+                JobRequest::OfficeToPdf {
+                    engines: HashMap::new(),
+                    quick: crate::office::QuickOptions::default(),
+                },
+                std::slice::from_ref(&pptx),
+            );
+            assert_eq!(done.failures[0].error.code(), "invalid_input");
+            assert!(done.failures[0]
+                .error
+                .to_string()
+                .contains("Keynote or LibreOffice"));
+        }
+        assert_eq!(snapshot(&[xlsx, csv, pptx]), before, "originals untouched");
+        fs::remove_dir_all(dir).unwrap();
+    }
+
     #[test]
     fn batches_continue_past_failures() {
         let dir = temp_dir("failures");
@@ -1260,6 +1359,24 @@ mod tests {
             r,
             JobRequest::PdfCompress {
                 level: Level::Smallest
+            }
+        );
+        let r: JobRequest = serde_json::from_str(
+            r#"{"action":"office_to_pdf","engines":{"slides":"keynote","word":"quick"},"quick":{"a4":false,"landscape":true,"firstSheetOnly":false}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            r,
+            JobRequest::OfficeToPdf {
+                engines: HashMap::from([
+                    ("slides".to_string(), crate::office::Engine::Keynote),
+                    ("word".to_string(), crate::office::Engine::Quick)
+                ]),
+                quick: crate::office::QuickOptions {
+                    a4: false,
+                    landscape: true,
+                    first_sheet_only: false
+                }
             }
         );
         let r: JobRequest = serde_json::from_str(r#"{"action":"strip_metadata"}"#).unwrap();

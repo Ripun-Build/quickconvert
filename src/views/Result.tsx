@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Copy, FolderOpen } from "lucide-react";
 import { Button } from "../components/Button";
-import { describeOutput, describeRemoved, formatBytes, truncateMiddle } from "../lib/format";
+import { describeFonts, describeMadeWith, describeOutput, describeRemoved, formatBytes, truncateMiddle } from "../lib/format";
 import { openOutput, revealOutput } from "../lib/ipc";
 import type { JobDone } from "../lib/types";
 
@@ -25,6 +25,8 @@ export function Result({ done, autoHide, onAutoHide }: { done: JobDone; autoHide
   const single = outputs.length === 1;
   const total = done.outputs.reduce((sum, o) => sum + o.bytes, 0);
   const removed = describeRemoved(done.outputs);
+  const madeWith = describeMadeWith(done.outputs);
+  const fonts = describeFonts(done.outputs);
   // Make PDF smaller: files that were already about as small as they get (nothing saved for them).
   const unchanged = done.unchanged ?? [];
   const unchangedNote =
@@ -91,6 +93,8 @@ export function Result({ done, autoHide, onAutoHide }: { done: JobDone; autoHide
             {single ? describeOutput(done.outputs[0]) : `${formatBytes(total)} in total`}
           </p>
           {removed && <p className="type-caption text-secondary">{removed}</p>}
+          {madeWith && <p className="type-caption text-secondary">{madeWith}</p>}
+          {fonts && <p className="type-caption text-secondary">{fonts}</p>}
           {unchangedNote && <p className="type-caption text-secondary">{unchangedNote}</p>}
         </div>
       </div>

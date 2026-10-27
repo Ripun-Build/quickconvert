@@ -1,7 +1,7 @@
 // Run with `npm test` (Node's built-in runner; types are stripped at runtime).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ACTION_SPECS, ACTIONS, PAGE_RANGE, buildMenu, filterMenu, flatActions, type InputKind } from "./actions.ts";
+import { ACTION_SPECS, ACTIONS, PAGE_RANGE, buildMenu, filterMenu, flatActions, withLabel, type InputKind } from "./actions.ts";
 
 const ids = (kinds: InputKind[]) => flatActions(buildMenu(kinds)).map((a) => a.id);
 const suggested = (kinds: InputKind[]) =>
@@ -51,6 +51,7 @@ test("enabled actions come first within a group", () => {
     [
       ["pdf_to_images", false],
       ["pdf_merge", false],
+      ["office_to_pdf", false],
     ],
   );
   const pdfConvert = buildMenu(["pdf"]).sections.find((s) => s.title === "Convert")!;
@@ -60,6 +61,7 @@ test("enabled actions come first within a group", () => {
       ["images_to_pdf", false],
       ["image_convert", false],
       ["pdf_merge", false],
+      ["office_to_pdf", false],
     ],
   );
 });
@@ -99,6 +101,7 @@ test("mixed images and PDFs are incompatible with per-type groups", () => {
     [
       ["pdf_merge", "Needs 2+ PDFs"],
       ["image_crop", "Works on one image at a time"],
+      ["office_to_pdf", "Needs Word, PowerPoint or Excel files"],
     ],
   );
 });
@@ -162,4 +165,28 @@ test("quality is hidden for PNG; resize shows only the active mode's fields", ()
 test("page range field accepts lists and ranges only", () => {
   for (const ok of ["1", "1-3", "1-3,5", " 2 , 4 - 6 ", "1,"]) assert.ok(PAGE_RANGE.test(ok), ok);
   for (const bad of ["", "a", "1--3", "-3", "1-3-5", "1.5"]) assert.ok(!PAGE_RANGE.test(bad) || !/\d/.test(bad), bad);
+});
+
+test("Word, PowerPoint and Excel files suggest Convert to PDF; mixed with photos they get their own group", () => {
+  assert.deepEqual(suggested(["document", "document"]), ["office_to_pdf"]);
+  assert.equal(listed(["document"]).image_convert, "Needs images");
+  const mixed = buildMenu(["image", "document", "document"]);
+  assert.equal(mixed.incompatible, true);
+  assert.deepEqual(
+    mixed.sections.map((s) => [s.title, s.scope]).slice(0, 2),
+    [
+      ["For the 1 image", "image"],
+      ["For the 2 documents", "document"],
+    ],
+  );
+  assert.deepEqual(
+    mixed.sections[1].items.map((i) => i.action.id),
+    ["office_to_pdf"],
+  );
+});
+
+test("Convert to PDF can be shown under the selection's name", () => {
+  const menu = withLabel(buildMenu(["document"]), "office_to_pdf", "Word to PDF");
+  assert.equal(menu.sections[0].items[0].action.label, "Word to PDF");
+  assert.equal(ACTIONS.find((a) => a.id === "office_to_pdf")!.label, "Convert to PDF", "registry unchanged");
 });

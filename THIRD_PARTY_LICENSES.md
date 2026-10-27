@@ -32,7 +32,7 @@ Pre-built by [bblanchon/pdfium-binaries](https://github.com/bblanchon/pdfium-bin
 The FreeType project is used under the FreeType License (FTL): portions of this software are
 copyright © The FreeType Project (www.freetype.org). All rights reserved.
 
-## Rust crates (293)
+## Rust crates (304)
 
 | Package | Version | Licence |
 |---|---|---|
@@ -44,6 +44,7 @@ copyright © The FreeType Project (www.freetype.org). All rights reserved.
 | alloc-stdlib | 0.2.4 | BSD-3-Clause |
 | alloc-stdlib | 0.3.0 | BSD-3-Clause (*) |
 | anyhow | 1.0.104 | MIT OR Apache-2.0 |
+| atoi_simd | 0.18.1 | MIT OR Apache-2.0 |
 | auto-launch | 0.6.0 | MIT |
 | base64 | 0.21.7 | MIT OR Apache-2.0 |
 | base64 | 0.23.1 | MIT OR Apache-2.0 |
@@ -58,10 +59,12 @@ copyright © The FreeType Project (www.freetype.org). All rights reserved.
 | brotli | 9.0.0 | BSD-3-Clause AND MIT |
 | brotli-decompressor | 5.0.3 | BSD-3-Clause/MIT |
 | brotli-decompressor | 6.0.1 | BSD-3-Clause/MIT |
+| bumpalo | 3.20.3 | MIT OR Apache-2.0 |
 | bytemuck | 1.25.2 | Zlib OR Apache-2.0 OR MIT |
 | byteorder | 1.5.0 | Unlicense OR MIT |
 | byteorder-lite | 0.1.0 | Unlicense OR MIT |
 | bytes | 1.12.1 | MIT |
+| calamine | 0.37.0 | MIT |
 | camino | 1.2.6 | MIT OR Apache-2.0 |
 | cargo-platform | 0.1.9 | MIT OR Apache-2.0 |
 | cargo_metadata | 0.19.2 | MIT |
@@ -71,6 +74,7 @@ copyright © The FreeType Project (www.freetype.org). All rights reserved.
 | chacha20 | 0.10.2 | MIT OR Apache-2.0 |
 | chrono | 0.4.45 | MIT OR Apache-2.0 (*) |
 | cipher | 0.5.2 | MIT OR Apache-2.0 (*) |
+| codepage | 0.1.3 | Apache-2.0 OR MIT |
 | color_quant | 1.1.0 | MIT |
 | const-oid | 0.10.2 | Apache-2.0 OR MIT |
 | cookie | 0.18.2 | MIT OR Apache-2.0 (*) |
@@ -95,6 +99,7 @@ copyright © The FreeType Project (www.freetype.org). All rights reserved.
 | darling | 0.24.1 | MIT |
 | darling_core | 0.24.1 | MIT (*) |
 | darling_macro | 0.24.1 | MIT |
+| debug_unsafe | 0.1.4 | MIT OR Apache-2.0 |
 | deranged | 0.5.9 | MIT OR Apache-2.0 |
 | derive_more | 2.1.1 | MIT |
 | derive_more-impl | 2.1.1 | MIT |
@@ -114,9 +119,10 @@ copyright © The FreeType Project (www.freetype.org). All rights reserved.
 | ecb | 0.2.1 | MIT OR Apache-2.0 |
 | either | 1.19.0 | MIT OR Apache-2.0 |
 | embed_plist | 1.2.2 | MIT OR Apache-2.0 |
-| encoding_rs | 0.8.42 | (Apache-2.0 OR MIT) AND BSD-3-Clause |
+| encoding_rs | 0.8.42 | (Apache-2.0 OR MIT) AND BSD-3-Clause (*) |
 | equivalent | 1.0.3 | Apache-2.0 OR MIT |
 | erased-serde | 0.4.10 | MIT OR Apache-2.0 |
+| fast-float2 | 0.2.4 | MIT OR Apache-2.0 |
 | fastrand | 2.5.0 | Apache-2.0 OR MIT |
 | fax | 0.2.7 | MIT |
 | fdeflate | 0.3.7 | MIT OR Apache-2.0 (*) |
@@ -182,7 +188,7 @@ copyright © The FreeType Project (www.freetype.org). All rights reserved.
 | muda | 0.20.0 | Apache-2.0 OR MIT (*) |
 | multiversion_no_op | 1.0.0 | Apache-2.0 OR MIT |
 | new_debug_unreachable | 1.0.6 | MIT |
-| nix | 0.31.3 | MIT |
+| nix | 0.31.3 | MIT (*) |
 | nom | 8.0.0 | MIT |
 | num-conv | 0.2.2 | MIT OR Apache-2.0 |
 | num-traits | 0.2.19 | MIT OR Apache-2.0 |
@@ -233,6 +239,7 @@ copyright © The FreeType Project (www.freetype.org). All rights reserved.
 | regex-syntax | 0.8.11 | MIT OR Apache-2.0 |
 | rfd | 0.16.0 | MIT |
 | rustc-hash | 2.1.3 | Apache-2.0 OR MIT |
+| rustversion | 1.0.23 | MIT OR Apache-2.0 |
 | same-file | 1.0.6 | Unlicense/MIT |
 | schemars | 0.8.22 | MIT |
 | schemars_derive | 0.8.22 | MIT |
@@ -294,6 +301,7 @@ copyright © The FreeType Project (www.freetype.org). All rights reserved.
 | toml_parser | 1.1.5+spec-1.1.0 | MIT OR Apache-2.0 |
 | toml_writer | 1.1.3+spec-1.1.0 | MIT OR Apache-2.0 |
 | tray-icon | 0.25.1 | MIT OR Apache-2.0 |
+| typed-path | 0.13.0 | MIT OR Apache-2.0 |
 | typeid | 1.0.3 | MIT OR Apache-2.0 |
 | typenum | 1.20.1 | MIT OR Apache-2.0 |
 | unicode-bidi | 0.3.18 | MIT OR Apache-2.0 |
@@ -326,7 +334,10 @@ copyright © The FreeType Project (www.freetype.org). All rights reserved.
 | zerotrie | 0.2.5 | Unicode-3.0 (*) |
 | zerovec | 0.11.8 | Unicode-3.0 (*) |
 | zerovec-derive | 0.11.6 | Unicode-3.0 (*) |
+| zip | 9.1.0 | MIT |
+| zlib-rs | 0.6.8 | Zlib |
 | zmij | 1.0.23 | MIT |
+| zopfli | 0.8.4 | Apache-2.0 |
 | zune-core | 0.5.3 | MIT OR Apache-2.0 OR Zlib |
 | zune-jpeg | 0.5.15 | MIT OR Apache-2.0 OR Zlib (*) |
 

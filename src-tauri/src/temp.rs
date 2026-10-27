@@ -26,3 +26,24 @@ impl Drop for TempFile {
         let _ = std::fs::remove_file(&self.0);
     }
 }
+
+/// A scratch folder in the system temp folder, removed (with everything in it) on drop.
+pub struct TempDir(PathBuf);
+
+impl TempDir {
+    pub fn new(purpose: &str) -> std::io::Result<Self> {
+        let dir = TempFile::new(purpose, "d").path().to_path_buf();
+        std::fs::create_dir_all(&dir)?;
+        Ok(TempDir(dir))
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}

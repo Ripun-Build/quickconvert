@@ -5,6 +5,7 @@ pub mod files;
 pub mod heic;
 pub mod instance;
 pub mod jobs;
+pub mod office;
 pub mod output;
 pub mod pool;
 pub mod popup;
@@ -68,6 +69,12 @@ pub fn run() {
             commands::rotate_check,
             commands::pdf_compress_estimate,
             commands::tray_thumbnail,
+            commands::office_engines,
+            commands::office_open_store,
+            commands::office_install_libreoffice,
+            commands::office_install_status,
+            commands::office_cancel_install,
+            commands::office_libreoffice_package,
             commands::pdf_page_upright,
             commands::pdf_page_sizes,
             commands::pdf_thumbnails,
@@ -105,6 +112,7 @@ pub fn run() {
             app.manage(PopupState::new(blur));
             app.manage(ThumbnailCache::default());
             app.manage(Jobs::default());
+            app.manage(office::install::InstallState::default());
             if already_running {
                 // This copy only explains itself and quits; the running one keeps the shortcut.
                 app.manage(settings);

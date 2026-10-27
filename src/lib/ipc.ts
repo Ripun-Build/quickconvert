@@ -17,6 +17,10 @@ import type {
   Preset,
   Preview,
   RotateCheck,
+  Engine,
+  EngineInfo,
+  InstallProgress,
+  LibreOfficePackage,
   PdfEstimate,
   PdfLevel,
   Turn,
@@ -78,6 +82,24 @@ export const thumbnail = (path: string) => call<string>("thumbnail", { path });
 /** Rotate view: thumbnail (longest side `size` px) and which way is up, if it can tell. */
 export const rotateCheck = (path: string, size: number) => call<RotateCheck>("rotate_check", { path, size });
 
+/** Convert to PDF: every way to make the PDF, and whether its app is installed. */
+export const officeEngines = () => call<EngineInfo[]>("office_engines");
+
+/** Open Pages, Keynote or Numbers in the App Store (Apple's apps can't be installed by others). */
+export const officeOpenStore = (engine: Engine) => call<void>("office_open_store", { engine });
+
+/** Download, check and install LibreOffice (after the user confirmed); progress: `onOfficeInstall`. */
+export const officeInstallLibreOffice = () => call<void>("office_install_libreoffice");
+
+export const officeInstallStatus = () => call<InstallProgress | null>("office_install_status");
+
+export const officeCancelInstall = () => call<void>("office_cancel_install");
+
+export const officeLibreOfficePackage = () => call<LibreOfficePackage>("office_libreoffice_package");
+
+export const onOfficeInstall = (handler: (progress: InstallProgress) => void): Promise<UnlistenFn> =>
+  listen<InstallProgress>("office://install", (event) => handler(event.payload));
+
 /** Page tray: a sharp thumbnail and the photo's upright proportions. */
 export const trayThumbnail = (path: string) => call<Preview>("tray_thumbnail", { path });
 
@@ -98,14 +120,17 @@ export const pdfPageSizes = (path: string) => call<PdfPageSize[]>("pdf_page_size
 export const pdfThumbnails = (path: string, pages: number[]) => call<string[]>("pdf_thumbnails", { path, pages });
 
 
-const DIALOG_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "bmp", "gif", "tif", "tiff", "heic", "heif", "pdf"];
+const DIALOG_EXTENSIONS = [
+  ...["jpg", "jpeg", "png", "webp", "bmp", "gif", "tif", "tiff", "heic", "heif", "pdf"],
+  ...["docx", "doc", "rtf", "odt", "pages", "pptx", "ppt", "key", "odp", "xlsx", "xls", "xlsm", "xlsb", "ods", "csv", "numbers"],
+];
 
 /** Native "Choose files…" dialog. Resolves to [] when cancelled. */
 export async function chooseFiles(): Promise<string[]> {
   const picked = await open({
     multiple: true,
     directory: false,
-    filters: [{ name: "Images and PDFs", extensions: DIALOG_EXTENSIONS }],
+    filters: [{ name: "Images, PDFs and documents", extensions: DIALOG_EXTENSIONS }],
   });
   if (picked === null) return [];
   return Array.isArray(picked) ? picked : [picked];

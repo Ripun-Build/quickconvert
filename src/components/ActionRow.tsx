@@ -2,6 +2,7 @@
 import { motion } from "framer-motion";
 import {
   Crop,
+  FileOutput,
   FileText,
   Image,
   Images,
@@ -25,6 +26,7 @@ const ICONS: Record<ActionId, LucideIcon> = {
   image_crop: Crop,
   image_rotate: RotateCw,
   strip_metadata: MapPinOff,
+  office_to_pdf: FileOutput,
   pdf_split: Scissors,
   pdf_rotate: RotateCw,
   pdf_compress: Minimize2,

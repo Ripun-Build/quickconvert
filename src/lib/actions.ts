@@ -2,7 +2,7 @@
 // under `node --test`.
 import type { JobRequest, ResizeMode } from "./types";
 
-export type InputKind = "image" | "pdf";
+export type InputKind = "image" | "pdf" | "document";
 
 export type ActionId =
   | "images_to_pdf"
@@ -14,6 +14,7 @@ export type ActionId =
   | "strip_metadata"
   | "image_compress"
   | "pdf_merge"
+  | "office_to_pdf"
   | "pdf_split"
   | "pdf_rotate"
   | "pdf_compress"
@@ -100,6 +101,29 @@ export const ACTIONS: readonly ActionDef[] = [
     keywords: ["privacy", "metadata", "exif", "gps", "location", "camera", "strip", "clean", "private"],
   },
   {
+    id: "office_to_pdf",
+    label: "Convert to PDF",
+    group: "convert",
+    input: "document",
+    minFiles: 1,
+    keywords: [
+      "pdf",
+      "word",
+      "docx",
+      "doc",
+      "powerpoint",
+      "pptx",
+      "slides",
+      "excel",
+      "xlsx",
+      "csv",
+      "spreadsheet",
+      "keynote",
+      "pages",
+      "numbers",
+    ],
+  },
+  {
     id: "pdf_split",
     label: "Split PDF",
     group: "edit",
@@ -150,11 +174,12 @@ const byId = (id: ActionId): ActionDef => {
 };
 
 /** Suggested order per selection shape (SPECS §6). */
-const SUGGESTED: Record<"oneImage" | "manyImages" | "onePdf" | "manyPdfs", ActionId[]> = {
+const SUGGESTED: Record<"oneImage" | "manyImages" | "onePdf" | "manyPdfs" | "documents", ActionId[]> = {
   oneImage: ["image_convert", "image_compress", "image_resize", "images_to_pdf"],
   manyImages: ["images_to_pdf", "image_compress", "image_resize"],
   onePdf: ["pdf_to_images", "pdf_compress", "pdf_split"],
   manyPdfs: ["pdf_merge", "pdf_compress"],
+  documents: ["office_to_pdf"],
 };
 
 const GROUP_TITLES: Record<ActionGroup, string> = {
@@ -189,7 +214,12 @@ export function accepts(action: ActionDef, kind: InputKind, count: number): bool
   return action.input === kind && count >= action.minFiles && count <= (action.maxFiles ?? Infinity);
 }
 
-const noun = (kind: InputKind, many: boolean) => (kind === "pdf" ? (many ? "PDFs" : "PDF") : many ? "images" : "image");
+const NOUNS: Record<InputKind, [string, string]> = {
+  image: ["image", "images"],
+  pdf: ["PDF", "PDFs"],
+  document: ["document", "documents"],
+};
+const noun = (kind: InputKind, many: boolean) => NOUNS[kind][many ? 1 : 0];
 
 /** Short explanation of why `action` can't run on `count` files of `kind`. */
 export function unavailableReason(action: ActionDef, kind: InputKind, count: number): string {
@@ -197,7 +227,7 @@ export function unavailableReason(action: ActionDef, kind: InputKind, count: num
   if (want !== kind || count < action.minFiles) {
     if (action.minFiles > 1) return `Needs ${action.minFiles}+ ${noun(want, true)}`;
     if (action.maxFiles === 1) return `Needs one ${noun(want, false)}`;
-    return want === "pdf" ? "Needs a PDF" : "Needs images";
+    return want === "pdf" ? "Needs a PDF" : want === "document" ? "Needs Word, PowerPoint or Excel files" : "Needs images";
   }
   return `Works on one ${noun(want, false)} at a time`;
 }
@@ -217,27 +247,40 @@ const enabledFirst = (items: MenuItem[]) => [...items.filter((i) => i.enabled), 
 export function buildMenu(kinds: readonly InputKind[]): Menu {
   if (kinds.length === 0) return { sections: [], incompatible: false };
 
-  const images = kinds.filter((k) => k === "image").length;
-  const pdfs = kinds.length - images;
-  if (images > 0 && pdfs > 0) {
-    // No v1 action takes both images and PDFs, so offer per-type groups instead.
-    const forImages = ACTIONS.filter((a) => accepts(a, "image", images));
-    const forPdfs = ACTIONS.filter((a) => accepts(a, "pdf", pdfs));
-    const neither = ACTIONS.filter((a) => !forImages.includes(a) && !forPdfs.includes(a));
+  const order: InputKind[] = ["image", "pdf", "document"];
+  const counts = new Map(order.map((k) => [k, kinds.filter((x) => x === k).length]));
+  const present = order.filter((k) => (counts.get(k) ?? 0) > 0);
+  if (present.length > 1) {
+    // No action takes two kinds of file at once, so offer a group per kind instead.
+    const groups = present.map((kind) => {
+      const n = counts.get(kind) ?? 0;
+      const actions = ACTIONS.filter((a) => accepts(a, kind, n));
+      return { kind, n, actions };
+    });
+    const neither = ACTIONS.filter((a) => !groups.some((g) => g.actions.includes(a)));
     const sections: MenuSection[] = [
-      { title: `For the ${plural(images, "image")}`, scope: "image", items: forImages.map((a) => item(a, "image", images)) },
-      { title: `For the ${plural(pdfs, "PDF")}`, scope: "pdf", items: forPdfs.map((a) => item(a, "pdf", pdfs)) },
-      {
-        title: "Not available",
-        items: neither.map((a) => item(a, a.input, a.input === "pdf" ? pdfs : images)),
-      },
+      ...groups.map((g) => ({
+        title: `For the ${g.n} ${noun(g.kind, g.n !== 1)}`,
+        scope: g.kind,
+        items: g.actions.map((a) => item(a, g.kind, g.n)),
+      })),
+      { title: "Not available", items: neither.map((a) => item(a, a.input, counts.get(a.input) ?? 0)) },
     ];
     return { incompatible: true, sections: sections.filter((s) => s.items.length > 0) };
   }
 
-  const kind: InputKind = images > 0 ? "image" : "pdf";
+  const kind = present[0];
   const count = kinds.length;
-  const shape = kind === "image" ? (count === 1 ? "oneImage" : "manyImages") : count === 1 ? "onePdf" : "manyPdfs";
+  const shape =
+    kind === "document"
+      ? "documents"
+      : kind === "image"
+        ? count === 1
+          ? "oneImage"
+          : "manyImages"
+        : count === 1
+          ? "onePdf"
+          : "manyPdfs";
   const suggested = SUGGESTED[shape].map(byId).filter((a) => accepts(a, kind, count));
   const rest = ACTIONS.filter((a) => !suggested.includes(a));
 
@@ -249,8 +292,15 @@ export function buildMenu(kinds: readonly InputKind[]): Menu {
   return { sections: sections.filter((s) => s.items.length > 0), incompatible: false };
 }
 
-function plural(n: number, word: string): string {
-  return `${n} ${word}${n === 1 ? "" : "s"}`;
+/** The same menu with one action shown under another name (e.g. "Word to PDF" for Convert to PDF). */
+export function withLabel(menu: Menu, id: ActionId, label: string): Menu {
+  return {
+    ...menu,
+    sections: menu.sections.map((s) => ({
+      ...s,
+      items: s.items.map((i) => (i.action.id === id ? { ...i, action: { ...i.action, label } } : i)),
+    })),
+  };
 }
 
 /** Filter a menu by a typed query (see `matches`). Empty sections are dropped. */
@@ -389,6 +439,15 @@ export const ACTION_SPECS: Partial<Record<ActionId, ActionSpec>> = {
     // The rotate view supplies the direction.
     toRequest: () => {
       throw new Error("image_rotate needs a direction");
+    },
+  },
+  office_to_pdf: {
+    submit: "Convert to PDF",
+    defaults: {},
+    fields: [],
+    // The Convert to PDF screen supplies the ways and options.
+    toRequest: () => {
+      throw new Error("office_to_pdf needs engines");
     },
   },
   pdf_split: {

@@ -32,6 +32,8 @@ lopdf = "0.45.0"
 webp = "0.3.1"
 pdfium-render = "0.9.4"
 tauri-plugin-autostart = "2"
+calamine = "0.37.0"
+zip = { version = "9.1.0", default-features = false, features = ["deflate"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

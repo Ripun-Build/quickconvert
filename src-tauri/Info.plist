@@ -3,6 +3,6 @@
 <plist version="1.0">
 <dict>
   <key>NSAppleEventsUsageDescription</key>
-  <string>QuickConvert reads the files you've selected in Finder so it can convert them.</string>
+  <string>QuickConvert reads the files you've selected in Finder, and when you choose it, asks Pages, Keynote or Numbers to make an exact PDF of your documents.</string>
 </dict>
 </plist>

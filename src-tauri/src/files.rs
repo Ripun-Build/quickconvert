@@ -20,6 +20,8 @@ const THUMB_CACHE_LIMIT: usize = 256;
 pub enum FileKind {
     Image,
     Pdf,
+    /// Word, PowerPoint or Excel (see `office::DocType`).
+    Document,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -47,6 +49,7 @@ pub fn kind_of(path: &Path) -> Option<FileKind> {
             Some(FileKind::Image)
         }
         "pdf" => Some(FileKind::Pdf),
+        _ if crate::office::DocType::of(path).is_some() => Some(FileKind::Document),
         _ => None,
     }
 }
@@ -152,10 +155,20 @@ pub fn jpeg_data_url(image: &image::DynamicImage, icc: Option<&[u8]>) -> Result<
 
 /// Small PNG data URL for an image file, rotated per its EXIF orientation.
 pub fn thumbnail_data_url(path: &Path) -> Result<String, AppError> {
-    if kind_of(path) != Some(FileKind::Image) {
-        return Err(AppError::Unsupported {
-            extension: extension_of(path),
-        });
+    match kind_of(path) {
+        Some(FileKind::Image) => {}
+        // Office files: the first page from the system's quick preview.
+        Some(FileKind::Document) => {
+            return Ok(data_url(
+                "image/png",
+                &crate::office::thumbnail(path, THUMB_SIZE * 2)?,
+            ))
+        }
+        _ => {
+            return Err(AppError::Unsupported {
+                extension: extension_of(path),
+            })
+        }
     }
     let picture = crate::convert::image::load_small(path, THUMB_SIZE * 4)?;
 
@@ -235,7 +248,9 @@ mod tests {
         assert_eq!(kind_of(Path::new("a/IMG_1.JPG")), Some(FileKind::Image));
         assert_eq!(kind_of(Path::new("scan.tiff")), Some(FileKind::Image));
         assert_eq!(kind_of(Path::new("doc.PDF")), Some(FileKind::Pdf));
-        assert_eq!(kind_of(Path::new("notes.docx")), None);
+        assert_eq!(kind_of(Path::new("notes.DOCX")), Some(FileKind::Document));
+        assert_eq!(kind_of(Path::new("budget.csv")), Some(FileKind::Document));
+        assert_eq!(kind_of(Path::new("notes.txt")), None);
         assert_eq!(kind_of(Path::new("Makefile")), None);
     }
 

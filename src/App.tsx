@@ -34,6 +34,7 @@ import { OptionsSheet } from "./views/OptionsSheet";
 import { CompressView } from "./views/CompressView";
 import { CropEditor } from "./views/CropEditor";
 import { PageRotateView } from "./views/PageRotateView";
+import { OfficeView } from "./views/OfficeView";
 import { PageTray } from "./views/PageTray";
 import { PdfCompressView } from "./views/PdfCompressView";
 import { PdfPagesEditor } from "./views/PdfPagesEditor";
@@ -77,6 +78,7 @@ type View =
   | { name: "rotate"; set: FileSet; action: ActionDef; files: FileInfo[] }
   | { name: "split"; set: FileSet; action: ActionDef; files: FileInfo[] }
   | { name: "tray"; set: FileSet; action: ActionDef; files: FileInfo[] }
+  | { name: "office"; set: FileSet; action: ActionDef; files: FileInfo[] }
   | { name: "pagerotate"; set: FileSet; action: ActionDef; files: FileInfo[] }
   | { name: "pdfcompress"; set: FileSet; action: ActionDef; files: FileInfo[] }
   | { name: "pages"; set: FileSet; action: ActionDef; files: FileInfo[] }
@@ -106,6 +108,7 @@ const DEPTH: Record<View["name"], number> = {
   rotate: 1,
   split: 1,
   tray: 1,
+  office: 1,
   pagerotate: 1,
   pdfcompress: 1,
   pages: 1,
@@ -126,6 +129,7 @@ const FOOTER: Record<View["name"], string> = {
   rotate: "click a picture to turn it · ↵ rotate · esc back",
   split: "click pages · ↵ save · esc back",
   tray: "drag photos to reorder · ↵ create PDF · esc back",
+  office: "pick how each file is made · ↵ convert · esc back",
   pagerotate: "click a page to turn it · ↵ rotate · esc back",
   pdfcompress: "↵ make smaller · esc back",
   pages: "click pages to pick · shift-click for a range · esc back",
@@ -306,7 +310,7 @@ function App() {
   }, [showCount]);
 
   // Fit the window to the content: editors are wider (SPECS §5), height follows the content.
-  const wide = ["resize", "crop", "pages", "split", "tray", "pagerotate"].includes(view.name);
+  const wide = ["resize", "crop", "pages", "split", "tray", "office", "pagerotate"].includes(view.name);
   useLayoutEffect(() => {
     const el = contentRef.current;
     if (!el) return;
@@ -356,7 +360,21 @@ function App() {
       if (e.key !== "Escape") return;
       const name = viewRef.current.name;
       if (
-        ["options", "resize", "crop", "rotate", "split", "tray", "pagerotate", "pdfcompress", "pages", "compress", "preset", "error"].includes(
+        [
+          "options",
+          "resize",
+          "crop",
+          "rotate",
+          "split",
+          "tray",
+          "office",
+          "pagerotate",
+          "pdfcompress",
+          "pages",
+          "compress",
+          "preset",
+          "error",
+        ].includes(
           name,
         )
       )
@@ -393,6 +411,7 @@ function App() {
     else if (action.id === "image_rotate") go({ name: "rotate", set, action, files });
     else if (action.id === "pdf_split") go({ name: "split", set, action, files });
     else if (action.id === "images_to_pdf") go({ name: "tray", set, action, files });
+    else if (action.id === "office_to_pdf") go({ name: "office", set, action, files });
     else if (action.id === "pdf_rotate") go({ name: "pagerotate", set, action, files });
     else if (action.id === "pdf_compress") go({ name: "pdfcompress", set, action, files });
     else if (action.id === "pdf_to_images") go({ name: "pages", set, action, files });
@@ -415,6 +434,7 @@ function App() {
       "image_rotate",
       "strip_metadata",
       "pdf_compress",
+      "office_to_pdf",
       "image_compress",
       "apply_preset",
     ].includes(job.request.action);
@@ -533,7 +553,9 @@ interface BodyProps {
   onEditorRun: (
     view: Extract<
       View,
-      { name: "resize" | "crop" | "rotate" | "split" | "tray" | "pagerotate" | "pdfcompress" | "pages" | "compress" | "preset" }
+      {
+        name: "resize" | "crop" | "rotate" | "split" | "tray" | "office" | "pagerotate" | "pdfcompress" | "pages" | "compress" | "preset";
+      }
     >,
     request: JobRequest,
     /** Only these files (Rotate skips images that are already right); default: the view's files. */
@@ -582,6 +604,15 @@ function Body(props: BodyProps) {
       );
     case "split":
       return <SplitEditor file={view.files[0]} onBack={onBack} onRun={(request) => onEditorRun(view, request)} />;
+    case "office":
+      return (
+        <OfficeView
+          files={view.files}
+          settings={settings}
+          onBack={onBack}
+          onRun={(request, files) => onEditorRun(view, request, files)}
+        />
+      );
     case "tray":
       return <PageTray files={view.files} onBack={onBack} onRun={(request, files) => onEditorRun(view, request, files)} />;
     case "pagerotate":
