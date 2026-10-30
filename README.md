@@ -1,89 +1,178 @@
+<div align="center">
+
+<img src="src-tauri/icons/128x128@2x.png" alt="QuickConvert icon" width="112" height="112">
+
 # QuickConvert
 
-Select files in Finder → press **⌃⇧Space** → convert, compress, crop or tidy them from a small popup at your cursor. Works with photos (including iPhone HEIC), PDFs, and Word, PowerPoint and Excel files.
-Offline and private: your files never leave your Mac. QuickConvert only goes online if you ask it to install LibreOffice.
+**Convert, compress and crop files right from Finder.**<br>
+Select files, press <kbd>⌃</kbd> <kbd>⇧</kbd> <kbd>Space</kbd>, and pick what you need from a small popup at your cursor.
 
-![The QuickConvert popup next to a Finder selection](docs/screenshots/popup.png)
+[![Latest release](https://img.shields.io/github/v/release/Ripun-Build/quickconvert?label=latest&color=2f6fed)](https://github.com/Ripun-Build/quickconvert/releases/latest)
+[![macOS 12 or later](https://img.shields.io/badge/macOS-12%2B-555?logo=apple&logoColor=white)](#install)
+[![Apple Silicon and Intel](https://img.shields.io/badge/Apple%20Silicon%20%26%20Intel-universal-555)](#install)
+[![MIT License](https://img.shields.io/badge/license-MIT-555)](LICENSE)
+
+### [⬇&nbsp; Download for Mac](https://github.com/Ripun-Build/quickconvert/releases/latest)
+
+<img src="docs/screenshots/popup.png" alt="The QuickConvert popup showing suggested actions for two images" width="370">
+
+</div>
+
+<br>
+
+**Private by design.** Everything runs on your Mac and your files are never uploaded. QuickConvert only goes online if you ask it to install LibreOffice.<br>
+**Your originals are safe.** Every action writes a new file next to the original, or into a folder you choose. Nothing is changed or overwritten.
 
 ## What it does
 
-**Photos** (JPG, PNG, WebP, HEIC, TIFF, BMP, GIF)
+### 🖼️ Photos
 
-| Action | Details |
+JPG, PNG, WebP, HEIC, TIFF, BMP and GIF.
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+- **Combine into PDF:** drag pages into order, turn them, leave some out and preview the result. JPEGs go in without losing quality.
+- **Convert:** JPG, PNG or WebP, keeping each photo's colours.
+- **Resize:** drag the corner or type a size. It never enlarges by accident.
+- **Compress:** hit a limit like *under 50 KB* for exam and job portals, with the real size shown before you start.
+- **Crop:** free, square, 4:3, 3:4, 16:9 or passport 35 × 45 mm.
+- **Rotate:** QuickConvert uses each photo's text and faces to work out which way up it should be.
+- **Remove location & camera info:** takes out GPS, camera details, dates and other hidden info.
+- **Presets:** one-click recipes like *Exam photo 200 × 230 px, 20–50 KB*. Edit them or make your own.
+
+</td>
+<td width="50%" valign="top">
+
+<img src="docs/screenshots/crop.png" alt="Crop editor">
+
+<img src="docs/screenshots/tray.png" alt="Page tray for Combine into PDF">
+
+</td>
+</tr>
+</table>
+
+iPhone **HEIC** photos work with every action. Results that keep the format are saved as JPG at about the original's size; *Remove location & camera info* keeps them HEIC. Built-in preset values are examples, so always check the official notice.
+
+### 📄 PDFs
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+<img src="docs/screenshots/pdf-pages.png" alt="PDF page picker">
+
+</td>
+<td width="50%" valign="top">
+
+- **PDF to JPG / PNG:** pick pages on thumbnails or type a range like `1-3, 5`. Sizes are named for their use: Screen, Standard, Print.
+- **Merge PDFs:** two or more PDFs become one, in the order you selected them.
+- **Split PDF:** click where new parts start, split every 1, 2 or 3 pages, or keep just the pages you pick.
+- **Rotate pages:** sideways pages are found and turned. Nothing is re-saved, so quality stays the same.
+- **Make PDF smaller:** Smallest, Balanced or Print, with the real new size shown first. Text stays sharp.
+
+</td>
+</tr>
+</table>
+
+### 📊 Word, PowerPoint and Excel to PDF
+
+<p align="center">
+  <img src="docs/screenshots/office.png" alt="Convert to PDF: choose how each kind of file is made" width="720">
+</p>
+
+Choose how each kind of file becomes a PDF:
+
+| | Quick (built in) | Exact copy |
+|---|---|---|
+| **Made with** | macOS itself | Pages, Keynote, Numbers or LibreOffice |
+| **Setup** | Nothing to install | Install the free app once; QuickConvert uses it automatically |
+| **Result** | Close to the original, not 100% the same | Keeps the layout, fonts, pictures and tables |
+| **Works for** | Word and Excel | Word, PowerPoint and Excel |
+
+- **Install from inside the app.** Pages, Keynote and Numbers open their free App Store page. LibreOffice is downloaded from libreoffice.org, checked to be the genuine file and installed for you, after asking first.
+- **No font downloads.** Fonts your Mac doesn't have are swapped for the closest ones it does (Univers → Helvetica Neue, for example) in a temporary copy, and the result tells you which were swapped.
+- **Details when you want them.** The ⓘ next to each choice says what it is, why it's better, which version you have and how big it is.
+
+<details>
+<summary><b>Supported file types</b></summary>
+
+<br>
+
+| Kind | Files |
 |---|---|
-| **Combine into PDF** | Photos and scans → one PDF. Arrange the pages first: drag them into order, turn them, leave some out, or let **Straighten photos** fix sideways ones. Each page is previewed for fit to image, A4 or Letter, with or without a margin. JPEGs go in without losing quality. |
-| **Convert to…** | JPG, PNG or WebP, keeping each photo's colours. |
-| **Resize** | Drag the image's corner or type the width and height; both stay in sync. Never enlarges by accident. |
-| **Compress** | To a size limit (e.g. *under 50 KB* for exam and job portals) or by quality, with the real resulting size shown before you start. |
-| **Crop** | Drag a box over the photo. Shapes: free, square, 4:3, 3:4, 16:9 and passport 35 × 45 mm (it tells you if the crop is big enough to print). Turn the photo while you crop. |
-| **Rotate** | Choose how every photo should end up: straight, left, right or upside down. QuickConvert works out which way each photo is turned now (from its text and faces) and turns each one by what it needs. Click a photo to turn it yourself. |
-| **Remove location & camera info** | Takes out GPS location, camera details, dates and other hidden info. JPG, PNG and WebP pictures stay exactly the same; sideways photos stay upright. |
-| **Presets** | One-click recipes like *Exam photo 200 × 230 px, 20–50 KB* or *Passport 35 × 45 mm*. Edit them or make your own in Settings. Built-in values are examples: always check the official notice. |
+| Word | `.docx` `.doc` `.rtf` `.odt` `.pages` |
+| PowerPoint | `.pptx` `.ppt` `.key` `.odp` |
+| Excel | `.xlsx` `.xls` `.xlsm` `.xlsb` `.ods` `.csv` `.numbers` |
 
-iPhone **HEIC** photos work with every action. Results that keep the format are saved as JPG at about the original's size; *Remove location & camera info* keeps them HEIC.
+PowerPoint files, along with `.key`, `.pages` and `.numbers`, need Keynote, Pages, Numbers or LibreOffice.
 
-**PDFs**
+</details>
 
-| Action | Details |
-|---|---|
-| **PDF to JPG / PNG** | Pick pages on thumbnails or type a range like `1-3, 5`. Sizes named for what they're for: Screen, Standard, Print. |
-| **Merge PDFs** | Two or more PDFs → one, in the order you selected them. |
-| **Split PDF** | Click the pages where new parts start (or split every page, every 2, every 3), or keep just the pages you pick as a new PDF. |
-| **Rotate pages** | Like *Rotate* for photos: sideways pages are found and turned, or click pages to turn them. Nothing is re-saved, so quality stays the same. |
-| **Make PDF smaller** | Smallest, Balanced or Print, with the real new size shown before you start. Scanned pages and photos are made smaller; text stays sharp. |
+## More screenshots
 
-**Word, PowerPoint and Excel** (`.docx .doc .rtf .odt .pages`, `.pptx .ppt .key .odp`, `.xlsx .xls .xlsm .xlsb .ods .csv .numbers`)
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/rotate.png" alt="Rotate: every photo straightened"></td>
+<td width="50%"><img src="docs/screenshots/resize.png" alt="Resize editor"></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/compress.png" alt="Compress with live size"></td>
+<td><img src="docs/screenshots/doc-menu.png" alt="Excel to PDF suggested for a spreadsheet"></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/install-progress.png" alt="Installing LibreOffice from inside QuickConvert"></td>
+<td><img src="docs/screenshots/settings-office.png" alt="Settings: how each kind of file is made"></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><img src="docs/screenshots/result-office.png" alt="Result: made with LibreOffice, fonts swapped" width="349"></td>
+</tr>
+</table>
 
-| Action | Details |
-|---|---|
-| **Word to PDF · PowerPoint to PDF · Excel to PDF** | Choose how each kind of file becomes a PDF. **Quick (built in)** works for Word and Excel straight away, with nothing to install, but isn't 100% the same as the original. For an **exact copy**, QuickConvert uses Pages, Keynote, Numbers or LibreOffice when one is installed, automatically. The **ⓘ** next to each choice says what it is, why it's better, which version you have and how big it is. |
-| **Install** | No app for a file type yet? **Install** opens the App Store page for Pages, Keynote or Numbers (free, from Apple), or downloads LibreOffice (free) from libreoffice.org, checks it's the genuine file and installs it into Applications for you, after asking first. |
+## Install
 
-PowerPoint files (and `.key`, `.pages`, `.numbers`) need Keynote, Pages, Numbers or LibreOffice. Fonts the file uses that your Mac doesn't have are swapped for the closest ones it does (for example Univers → Helvetica Neue) in a temporary copy, so nothing needs downloading; the result tells you which fonts were swapped.
+1. **Download** `QuickConvert_<version>_universal.dmg` from [Releases](https://github.com/Ripun-Build/quickconvert/releases/latest) and drag **QuickConvert** to **Applications**. Already have an older version? See [Updating](#updating).
+2. **Open it the first time:** right-click (or Control-click) **QuickConvert** in Applications and choose **Open**, then **Open** again. You only need to do this once.
+3. **Find it in the menu bar.** There's no Dock icon. The first time you use it on a Finder selection, macOS asks whether QuickConvert may control Finder. Choose **Allow** so it can see which files you've selected.
 
-![Convert to PDF: choose how each kind of file is made](docs/screenshots/office.png)
+> [!NOTE]
+> The app isn't notarised by Apple yet, so macOS says it's from an unidentified developer. On recent macOS versions, if there's no Open button, try to open it once, then go to **System Settings → Privacy & Security** and click **Open Anyway**.
 
-| | |
-|---|---|
-| ![Excel to PDF suggested for a spreadsheet](docs/screenshots/doc-menu.png) | ![Result: made with LibreOffice, fonts swapped](docs/screenshots/result-office.png) |
-| ![Installing LibreOffice from inside QuickConvert](docs/screenshots/install-progress.png) | ![Settings: how each kind of file is made](docs/screenshots/settings-office.png) |
+### Updating
 
-Every action writes a new file next to the original (or into a folder you choose) and never changes or overwrites the original.
-
-| | |
-|---|---|
-| ![Crop editor](docs/screenshots/crop.png) | ![Page tray for Combine into PDF](docs/screenshots/tray.png) |
-| ![Rotate: every photo straightened](docs/screenshots/rotate.png) | ![Resize editor](docs/screenshots/resize.png) |
-| ![PDF page picker](docs/screenshots/pdf-pages.png) | ![Compress with live size](docs/screenshots/compress.png) |
-
-## Install (macOS 12 or later, Apple Silicon or Intel)
-
-1. Download `QuickConvert_<version>_universal.dmg` from the [Releases](https://github.com/Ripun-Build/quickconvert/releases) page and drag **QuickConvert** to **Applications**.
-   Already have an older version? See [Updating](#updating).
-2. **First launch:** the app isn't notarised by Apple yet, so macOS will say it's from an unidentified developer. Right-click (or Control-click) **QuickConvert** in Applications and choose **Open**, then **Open** again. You only need to do this once.
-   On recent macOS versions, if there's no Open button: try to open it once, then go to **System Settings → Privacy & Security** and click **Open Anyway**.
-3. QuickConvert lives in the **menu bar** (no Dock icon). The first time you use it on a Finder selection, macOS asks whether QuickConvert may control Finder: choose **Allow** so it can see which files you've selected.
-
-## Updating
-
-QuickConvert doesn't check for updates by itself yet. To get a new version (for example from 0.2 to 0.3):
+QuickConvert doesn't check for updates by itself yet. To get a new version:
 
 1. **Quit QuickConvert first:** menu bar icon → **Quit**. If the old version keeps running, both fight over the shortcut.
-2. Download the new `.dmg` from [Releases](https://github.com/Ripun-Build/quickconvert/releases), drag **QuickConvert** to **Applications** and choose **Replace**.
-3. **Right-click → Open → Open once more.** macOS treats each new version as a new app, so the "unidentified developer" warning comes back one time.
+2. Download the new `.dmg` from [Releases](https://github.com/Ripun-Build/quickconvert/releases/latest), drag **QuickConvert** to **Applications** and choose **Replace**.
+3. **Right-click → Open → Open once more.** macOS treats each new version as a new app, so the warning comes back one time.
 4. If macOS asks again whether QuickConvert may control Finder, choose **Allow**.
 
 Your settings, presets and *Launch at login* carry over. To hear about new versions, click **Watch → Custom → Releases** on this page.
 
-## Use
+## How to use it
 
-- **Select files in Finder, press ⌃⇧Space.** The popup appears at the pointer with the actions that make sense for those files, the best ones first under *Suggested*.
-- Type to search, use **↑ ↓** and **Return**, or press **1–9**. **Esc** goes back one step.
-- The popup stays open until you close it with its **×** or **⌘W**, so you can drag more files in or switch apps. Drag its top bar to move it.
+Select files in Finder and press <kbd>⌃</kbd> <kbd>⇧</kbd> <kbd>Space</kbd>. The popup appears at the pointer with the best actions first, under *Suggested*.
+
+| Keys | What they do |
+|---|---|
+| Type | Search actions |
+| <kbd>↑</kbd> <kbd>↓</kbd> and <kbd>Return</kbd> | Choose an action |
+| <kbd>1</kbd>–<kbd>9</kbd> | Jump straight to an action |
+| <kbd>Esc</kbd> | Go back one step |
+| <kbd>⌘</kbd> <kbd>W</kbd> or **×** | Close the popup |
+| <kbd>⌘</kbd> <kbd>,</kbd> | Open Settings |
+
+- The popup stays open until you close it, so you can drag in more files or switch apps. Drag its top bar to move it.
 - No selection? The popup opens as a drop zone: drag files in or click **Choose files…**.
-- **Settings** (menu bar icon → Settings…, the ⚙ in the popup, or **⌘,**): change the shortcut, appearance (System / Light / Dark), where files are saved, default quality and sizes, presets, how Word, PowerPoint and Excel files are made into PDFs, and launch at login.
+- **Settings** (menu bar icon → Settings…, or the ⚙ in the popup): change the shortcut, appearance (System / Light / Dark), where files are saved, default quality and sizes, presets, how Word, PowerPoint and Excel files are made into PDFs, and launch at login.
 
-## Build from source
+## For developers
+
+<details>
+<summary><b>Build from source</b></summary>
+
+<br>
 
 Requirements: [Rust](https://rustup.rs) (stable), Node.js LTS, and Xcode Command Line Tools (`xcode-select --install`).
 
@@ -109,7 +198,9 @@ cd src-tauri && cargo test && cargo clippy --all-targets -- -D warnings
 npm test && npx tsc --noEmit
 ```
 
-Docs: [SPECS](docs/SPECS.md) (what it does) · [DESIGN](docs/DESIGN.md) (design system) · [TASKS](docs/TASKS.md) (milestones).
+</details>
+
+Docs: [SPECS](docs/SPECS.md) (what it does) · [DESIGN](docs/DESIGN.md) (design system) · [TASKS](docs/TASKS.md) (milestones)
 
 ## Licences
 
