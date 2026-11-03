@@ -331,7 +331,7 @@ mod tests {
                     .strip_prefix(&dir)
                     .unwrap()
                     .to_string_lossy()
-                    .into_owned()
+                    .replace('\\', "/") // Windows separators
             })
             .collect();
         assert_eq!(

@@ -1108,7 +1108,10 @@ mod tests {
                 "doc (pages 4-5).pdf"
             ]
         );
-        assert!(split.outputs.iter().all(|o| o.path.contains("/doc parts/")));
+        assert!(split
+            .outputs
+            .iter()
+            .all(|o| Path::new(&o.path).parent().unwrap().ends_with("doc parts")));
 
         let picked = run_quiet(
             JobRequest::PdfExtract { pages: vec![2, 5] },
@@ -1496,10 +1499,10 @@ mod tests {
         );
         let expected: Vec<String> = (1..=10).map(|n| format!("p0 +9-{n:02}.jpg")).collect();
         assert_eq!(names(&done), expected);
-        assert!(done
-            .outputs
-            .iter()
-            .all(|o| o.path.contains("/p0 +9 pages/")));
+        assert!(done.outputs.iter().all(|o| Path::new(&o.path)
+            .parent()
+            .unwrap()
+            .ends_with("p0 +9 pages")));
         // A4 at 150 DPI: 1240 × 1754 px.
         let first = image::open(&done.outputs[0].path).unwrap();
         assert_eq!((first.width(), first.height()), (1240, 1754));
