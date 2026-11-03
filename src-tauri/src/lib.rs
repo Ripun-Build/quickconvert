@@ -1,3 +1,7 @@
+// Until the Windows port fills in its own versions (M18–M21), some helpers are only reached from
+// macOS code. Remove this once Windows uses them too; macOS keeps the strict lint.
+#![cfg_attr(not(target_os = "macos"), allow(dead_code))]
+
 pub mod commands;
 pub mod convert;
 pub mod errors;
