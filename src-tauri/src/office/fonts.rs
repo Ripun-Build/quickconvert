@@ -93,7 +93,7 @@ pub fn installed() -> Families {
 
 #[cfg(target_os = "macos")]
 fn system_families() -> Vec<String> {
-    let out = std::process::Command::new("/usr/bin/osascript")
+    let out = crate::process::command("/usr/bin/osascript")
         .args([
             "-l",
             "JavaScript",

@@ -1,7 +1,6 @@
 //! macOS: HEIC → temporary TIFF with `/usr/bin/sips` (ships with every Mac).
 
 use std::path::Path;
-use std::process::Command;
 
 use image::DynamicImage;
 
@@ -11,7 +10,7 @@ use crate::temp::TempFile;
 
 pub fn decode(path: &Path, max: Option<u32>) -> Result<TempFile, AppError> {
     let copy = TempFile::new("heic", "tiff");
-    let mut sips = Command::new("/usr/bin/sips");
+    let mut sips = crate::process::command("/usr/bin/sips");
     sips.args(["-s", "format", "tiff"]);
     if let Some(max) = max {
         sips.arg("-Z").arg(max.to_string());
@@ -32,7 +31,7 @@ pub fn encode(image: &DynamicImage, icc: Option<&[u8]>) -> Result<Vec<u8>, AppEr
     img::encode(image, icc, OutputFormat::Png, 100, &mut file)?;
     drop(file);
     let target = TempFile::new("heic-out", "heic");
-    let out = Command::new("/usr/bin/sips")
+    let out = crate::process::command("/usr/bin/sips")
         .args(["-s", "format", "heic"])
         .arg(source.path())
         .arg("--out")

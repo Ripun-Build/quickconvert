@@ -5,7 +5,7 @@
 //! It uses the Mac's own `curl`, `shasum`, `hdiutil` and `ditto`.
 
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
@@ -152,7 +152,7 @@ fn download(
     report: &dyn Fn(Progress),
 ) -> Result<(), AppError> {
     let _ = std::fs::remove_file(dest);
-    let mut child = Command::new("/usr/bin/curl")
+    let mut child = crate::process::command("/usr/bin/curl")
         .args([
             "--location",
             "--fail",
@@ -197,7 +197,7 @@ fn download(
 
 /// SHA-256 of a file, as lower-case hex.
 pub fn sha256_of(path: &Path) -> Result<String, AppError> {
-    let out = Command::new("/usr/bin/shasum")
+    let out = crate::process::command("/usr/bin/shasum")
         .args(["-a", "256"])
         .arg(path)
         .output()?;
@@ -227,7 +227,7 @@ pub fn install_from_dmg(dmg: &Path, apps_dirs: &[PathBuf]) -> Result<PathBuf, Ap
     })?;
     let mount = std::env::temp_dir().join(format!("quickconvert-mount-{}", std::process::id()));
     let _ = std::fs::create_dir_all(&mount);
-    let attached = Command::new("/usr/bin/hdiutil")
+    let attached = crate::process::command("/usr/bin/hdiutil")
         .args([
             "attach",
             "-nobrowse",
@@ -254,7 +254,7 @@ pub fn install_from_dmg(dmg: &Path, apps_dirs: &[PathBuf]) -> Result<PathBuf, Ap
                 detail: "no LibreOffice.app in the disk image".into(),
             })?;
         let target = target_dir.join("LibreOffice.app");
-        let copied = Command::new("/usr/bin/ditto")
+        let copied = crate::process::command("/usr/bin/ditto")
             .arg(&app)
             .arg(&target)
             .status()?;
@@ -266,7 +266,7 @@ pub fn install_from_dmg(dmg: &Path, apps_dirs: &[PathBuf]) -> Result<PathBuf, Ap
         }
         Ok(target)
     })();
-    let _ = Command::new("/usr/bin/hdiutil")
+    let _ = crate::process::command("/usr/bin/hdiutil")
         .args(["detach", "-force"])
         .arg(&mount)
         .output();
@@ -292,7 +292,7 @@ mod tests {
         std::fs::create_dir_all(src.join("LibreOffice.app/Contents")).unwrap();
         std::fs::write(src.join("LibreOffice.app/Contents/Info.plist"), "<plist/>").unwrap();
         let dmg = dir.join("fake.dmg");
-        let ok = Command::new("/usr/bin/hdiutil")
+        let ok = crate::process::command("/usr/bin/hdiutil")
             .args([
                 "create",
                 "-quiet",

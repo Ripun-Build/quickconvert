@@ -10,6 +10,7 @@ pub mod output;
 pub mod pool;
 pub mod popup;
 pub mod presets;
+pub mod process;
 pub mod selection;
 pub mod settings;
 pub mod settings_window;

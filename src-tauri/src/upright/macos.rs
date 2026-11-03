@@ -1,7 +1,5 @@
 //! macOS: score the four readings with Vision via `osascript -l JavaScript` (see upright.js).
 
-use std::process::Command;
-
 use image::DynamicImage;
 
 use super::Scores;
@@ -26,7 +24,7 @@ pub fn scores(image: &DynamicImage) -> Result<Scores, AppError> {
     )?;
     drop(file);
 
-    let out = Command::new("/usr/bin/osascript")
+    let out = crate::process::command("/usr/bin/osascript")
         .args(["-l", "JavaScript", "-e", SCRIPT])
         .arg(temp.path())
         .output()?;

@@ -1,7 +1,5 @@
 //! Finder selection via AppleScript (`osascript`).
 
-use std::process::Command;
-
 use super::{parse_paths, Selection};
 
 const FINDER_BUNDLE_ID: &str = "com.apple.finder";
@@ -32,7 +30,10 @@ pub fn source_is_frontmost() -> bool {
 
 /// POSIX paths of the items selected in the frontmost Finder window (or the desktop).
 pub fn get_selected_files() -> Selection {
-    let output = match Command::new("osascript").args(["-e", SCRIPT]).output() {
+    let output = match crate::process::command("osascript")
+        .args(["-e", SCRIPT])
+        .output()
+    {
         Ok(output) => output,
         Err(_) => return Selection::Empty,
     };
@@ -53,7 +54,7 @@ pub fn get_selected_files() -> Selection {
 }
 
 fn run(program: &str, args: &[&str]) -> Option<String> {
-    let output = Command::new(program).args(args).output().ok()?;
+    let output = crate::process::command(program).args(args).output().ok()?;
     output
         .status
         .success()

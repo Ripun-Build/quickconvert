@@ -27,7 +27,7 @@ static LIBREOFFICE: Mutex<()> = Mutex::new(());
 
 pub fn bundle_version(app: &Path) -> Option<String> {
     let plist = app.join("Contents/Info.plist");
-    let out = Command::new("/usr/bin/plutil")
+    let out = crate::process::command("/usr/bin/plutil")
         .args(["-extract", "CFBundleShortVersionString", "raw", "-o", "-"])
         .arg(&plist)
         .output()
@@ -133,7 +133,7 @@ fn looks_like_document(path: &Path) -> Result<bool, AppError> {
 /// Print a document (or HTML) to a PDF on paper of `size` points.
 fn print_pdf(source: &Path, size: (f64, f64)) -> Result<Vec<u8>, AppError> {
     let pdf = TempFile::new("office", "pdf");
-    let mut cmd = Command::new("/usr/bin/osascript");
+    let mut cmd = crate::process::command("/usr/bin/osascript");
     cmd.args(["-l", "JavaScript", "-e", PRINT_SCRIPT])
         .arg(source)
         .arg(pdf.path())
@@ -191,7 +191,7 @@ fn iwork_pdf(
   end timeout
 end run"#
     );
-    let mut cmd = Command::new("/usr/bin/osascript");
+    let mut cmd = crate::process::command("/usr/bin/osascript");
     cmd.arg("-e").arg(&script).arg(input).arg(&out);
     let (ok, log) = run_limited(cmd, APP_LIMIT, name)?;
     if !ok || !out.exists() {
@@ -328,7 +328,7 @@ fn libreoffice_convert(soffice: &Path, profile: &Path, input: &Path) -> Result<V
     let pdf = out_dir.join(format!("{stem}.pdf"));
     let fonts = libreoffice_font_config(profile);
     for attempt in 0..2 {
-        let mut cmd = Command::new(soffice);
+        let mut cmd = crate::process::command(soffice);
         if let Some(conf) = &fonts {
             cmd.env("FONTCONFIG_FILE", conf);
         }
@@ -383,7 +383,7 @@ pub fn thumbnail(path: &Path, size: u32) -> Result<Vec<u8>, AppError> {
     ));
     std::fs::create_dir_all(&dir)?;
     let cleanup = OutDir(dir.clone());
-    let mut cmd = Command::new("/usr/bin/qlmanage");
+    let mut cmd = crate::process::command("/usr/bin/qlmanage");
     cmd.args(["-t", "-s", &size.to_string(), "-o"])
         .arg(&dir)
         .arg(path);
@@ -425,7 +425,7 @@ mod tests {
             return rtf;
         }
         let out = dir.join(format!("report.{ext}"));
-        let ok = Command::new("/usr/bin/textutil")
+        let ok = crate::process::command("/usr/bin/textutil")
             .args(["-convert", ext, "-output"])
             .arg(&out)
             .arg(&rtf)
@@ -575,7 +575,7 @@ mod tests {
 
     #[test]
     fn stuck_tools_are_stopped() {
-        let mut cmd = Command::new("/bin/sleep");
+        let mut cmd = crate::process::command("/bin/sleep");
         cmd.arg("5");
         let err = run_limited(cmd, Duration::from_millis(200), "Keynote").unwrap_err();
         assert!(err.to_string().starts_with("Keynote took too long"));

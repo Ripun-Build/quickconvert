@@ -46,6 +46,14 @@
     "resources": {
       "resources/pdfium/": "pdfium/",
       "resources/presets.json": "presets.json"
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser"
+      }
     }
   }
 }
